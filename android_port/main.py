@@ -263,6 +263,14 @@ class LidarApp(App):
                     settings.setJavaScriptEnabled(True)
                     settings.setDomStorageEnabled(True)
                     settings.setAllowFileAccess(True)
+                    settings.setAllowContentAccess(True)
+                    
+                    # Forza Mixed Content Mode (0 = MIXED_CONTENT_ALWAYS_ALLOW)
+                    # Necessario su Android 5.0+ per caricare HTTP locale
+                    try:
+                        settings.setMixedContentMode(0)
+                    except:
+                        pass
                     
                     # Bridge per chiamate da JS a Python
                     class WebAppInterface(PythonJavaClass):
