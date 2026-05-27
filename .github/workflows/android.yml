@@ -36,7 +36,7 @@ jobs:
           JAVA_OPTS: "-Xmx4g"
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: lidar-app-debug
           path: android_port/bin/*.apk
