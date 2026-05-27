@@ -68,6 +68,10 @@ class LidarLogic:
                         self.lidar_data["intensities"] = list(self.current_intensities)
                         self.lidar_data["errors"] = list(self.current_errors)
                         points = sum(1 for d in self.current_scan if d > 0)
+                        
+                        valid_intensities = [i for i, d in zip(self.current_intensities, self.current_scan) if d > 0]
+                        avg_intensity = sum(valid_intensities) / len(valid_intensities) if valid_intensities else 0
+                        
                         payload = {
                             'scan': self.lidar_data["scan"],
                             'intensities': self.lidar_data["intensities"],
@@ -75,6 +79,8 @@ class LidarLogic:
                             'count': points,
                             'hz': self.lidar_data["hz"],
                             'rpm': self.lidar_data["rpm"],
+                            'avg_intensity': avg_intensity,
+                            'error_rate': (self.lidar_data["bad_frames"] / self.lidar_data["total_frames"]) * 100 if self.lidar_data["total_frames"] > 0 else 0,
                             'data_rate': points * self.lidar_data["hz"],
                             'fov_coverage': (points / 360.0) * 100.0,
                             'max_dist': max(self.current_scan) if any(self.current_scan) else 0.0,

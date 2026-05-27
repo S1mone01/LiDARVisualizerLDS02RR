@@ -8,14 +8,16 @@
     <style>
         :root {
             --primary: #00ff00;
-            --bg: #050507;
-            --card-bg: #111115;
+            --primary-glow: rgba(0, 255, 0, 0.4);
+            --bg: #0a0a0f;
+            --card-bg: #14141c;
             --text: #e0e0e0;
             --danger: #ff3333;
             --warning: #ffcc00;
             --info: #00ccff;
-            --border: #22222b;
-            --accent: rgba(0, 255, 0, 0.1);
+            --border: #2a2a35;
+            --accent: rgba(0, 255, 0, 0.15);
+            --panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
         }
         body {
             background-color: var(--bg);
@@ -26,9 +28,10 @@
             grid-template-rows: auto 1fr;
             height: 100vh;
             margin: 0;
-            gap: 12px;
-            padding: 12px;
+            gap: 16px;
+            padding: 16px;
             overflow: hidden;
+            box-sizing: border-box;
         }
         header {
             grid-column: 1 / -1;
@@ -37,135 +40,250 @@
             align-items: center;
             background: var(--card-bg);
             padding: 15px 30px;
-            border-radius: 12px;
+            border-radius: 16px;
             border: 1px solid var(--border);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            box-shadow: var(--panel-shadow);
+            position: relative;
+            z-index: 10;
+        }
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0.3;
         }
         h1 { 
             margin: 0; 
             font-family: 'Orbitron', sans-serif; 
-            font-size: 1.2rem; 
-            letter-spacing: 2px;
+            font-size: 1.4rem; 
+            letter-spacing: 3px;
             color: var(--primary); 
-            text-shadow: 0 0 15px rgba(0,255,0,0.4); 
+            text-shadow: 0 0 20px var(--primary-glow); 
         }
         
         #sidebar {
             background: var(--card-bg);
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: 16px;
+            padding: 24px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
             overflow-y: auto;
             border: 1px solid var(--border);
+            box-shadow: var(--panel-shadow);
         }
 
         .stat-group {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 15px;
         }
 
         .stat-card {
-            background: rgba(255, 255, 255, 0.02);
-            padding: 15px;
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 18px;
+            border-radius: 12px;
             border: 1px solid var(--border);
-            border-left: 4px solid #333;
-            transition: all 0.3s ease;
+            border-left: 4px solid #3a3a45;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .stat-card:hover { background: rgba(255,255,255,0.04); border-color: #444; }
-        .stat-card.alert { border-left-color: var(--danger); animation: pulse 1.5s infinite; }
-        .label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 8px; font-weight: 700; letter-spacing: 1px; }
-        .value { font-family: 'Orbitron', sans-serif; font-size: 1.5rem; font-weight: bold; color: #fff; }
-        .unit { font-size: 0.8rem; color: #666; margin-left: 4px; }
+        .stat-card:hover { 
+            background: rgba(255,255,255,0.06); 
+            border-color: #4a4a5a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .stat-card.alert { 
+            border-left-color: var(--danger); 
+            animation: pulse 1.5s infinite; 
+            background: rgba(255, 0, 0, 0.05);
+        }
+        .label { font-size: 0.8rem; color: #888; text-transform: uppercase; margin-bottom: 8px; font-weight: 700; letter-spacing: 1.5px; }
+        .value { font-family: 'Orbitron', sans-serif; font-size: 1.6rem; font-weight: bold; color: #fff; }
+        .unit { font-size: 0.9rem; color: #666; margin-left: 4px; }
 
         #main-view {
-            background: var(--card-bg);
-            border-radius: 12px;
+            background: #050508;
+            border-radius: 16px;
             position: relative;
             overflow: hidden;
             border: 1px solid var(--border);
-            box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.9);
         }
-        canvas { width: 100%; height: 100%; cursor: crosshair; }
+        canvas { 
+            width: 100%; 
+            height: 100%; 
+            cursor: grab; 
+            touch-action: none;
+        }
+        canvas:active { cursor: grabbing; }
 
         .controls-overlay {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: 24px;
+            right: 24px;
             display: flex;
             flex-direction: column;
             gap: 12px;
             z-index: 100;
         }
+
+        .view-controls {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            display: flex;
+            gap: 12px;
+            z-index: 100;
+            background: rgba(20, 20, 28, 0.8);
+            padding: 8px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(8px);
+        }
         
         .btn {
-            background: #1a1a20;
+            background: #1a1a25;
             border: 1px solid var(--border);
-            color: #aaa;
-            padding: 10px 18px;
-            border-radius: 6px;
+            color: #bbb;
+            padding: 12px 20px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-family: 'Orbitron', sans-serif;
-            font-weight: bold;
-            transition: all 0.3s;
+            font-weight: 700;
+            transition: all 0.2s;
             text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
-        .btn:hover { background: #25252f; border-color: var(--primary); color: #fff; }
+        .btn:hover { background: #252535; border-color: var(--primary); color: #fff; }
         .btn.active { 
             background: var(--primary); 
             color: #000; 
             border-color: var(--primary); 
-            box-shadow: 0 0 15px rgba(0,255,0,0.3);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+        }
+
+        .btn-icon {
+            padding: 10px;
+            width: 40px;
+            height: 40px;
         }
 
         @keyframes pulse {
             0% { box-shadow: inset 0 0 0 0 rgba(255,0,0,0); }
-            50% { box-shadow: inset 0 0 20px 0 rgba(255,0,0,0.2); }
+            50% { box-shadow: inset 0 0 30px 0 rgba(255,0,0,0.3); }
             100% { box-shadow: inset 0 0 0 0 rgba(255,0,0,0); }
         }
 
         .legend {
             position: absolute;
-            bottom: 25px;
-            right: 25px;
-            background: rgba(10, 10, 15, 0.9);
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 0.8rem;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(20, 20, 28, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            font-size: 0.85rem;
             border: 1px solid var(--border);
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--panel-shadow);
         }
 
         select {
             appearance: none;
-            background: #1a1a20;
+            background: #1a1a25;
             border: 1px solid var(--border);
             color: #fff;
-            padding: 4px 8px;
-            border-radius: 5px;
+            padding: 8px 16px;
+            border-radius: 8px;
             font-family: 'Rajdhani', sans-serif;
             cursor: pointer;
             outline: none;
+            transition: border-color 0.2s;
+        }
+        select:hover { border-color: var(--primary); }
+
+        /* Minimal Sliders Style */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 3px;
+            background: #2a2a35;
+            border-radius: 5px;
+            outline: none;
+            margin: 15px 0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--primary-glow);
+            border: 2px solid var(--card-bg);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+            box-shadow: 0 0 15px var(--primary);
+        }
+
+        /* Sidebar scrollbar minimal style */
+        #sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+        #sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #sidebar::-webkit-scrollbar-thumb {
+            background: #2a2a35;
+            border-radius: 10px;
+        }
+        #sidebar::-webkit-scrollbar-thumb:hover {
+            background: #3a3a45;
+        }
+
+        .zoom-info {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-family: 'Orbitron';
+            font-size: 0.7rem;
+            color: #888;
+            pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.1);
         }
     </style>
 </head>
 <body>
     <header>
-        <h1>SISTEMA LiDAR</h1>
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <div id="connection-controls" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 8px; border: 1px solid var(--border);">
-                <span class="label" style="margin-bottom:0; font-size: 0.7rem;">PORTA:</span>
-                <select id="com-port-select" style="width: 100px;">
+        <h1>SISTEMA LiDAR v2.0</h1>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div id="connection-controls" style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05); padding: 8px 20px; border-radius: 12px; border: 1px solid var(--border);">
+                <span class="label" style="margin-bottom:0; font-size: 0.75rem;">PORTA:</span>
+                <select id="com-port-select" style="width: 120px;">
                     <option value="">Scansione...</option>
                 </select>
-                <button class="btn" id="btnConnect" style="padding: 5px 12px; font-size: 0.7rem;">Connetti</button>
+                <button class="btn" id="btnConnect" style="padding: 6px 16px; font-size: 0.75rem;">Connetti</button>
             </div>
-            <span id="connection-status" style="font-weight: bold; font-family: 'Orbitron'; font-size: 0.9rem; min-width: 120px; text-align: right;">DISCONNESSO</span>
-            <span id="timestamp" style="color: #666; font-size: 1rem; font-family: 'Orbitron'; margin-left: 10px;">--:--:--</span>
+            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                <span id="connection-status" style="font-weight: bold; font-family: 'Orbitron'; font-size: 0.9rem; color: var(--danger);">DISCONNESSO</span>
+                <span id="timestamp" style="color: #666; font-size: 0.8rem; font-family: 'Orbitron';">--:--:--</span>
+            </div>
         </div>
     </header>
 
@@ -190,62 +308,75 @@
         </div>
 
         <div class="stat-card">
-            <div class="label">Telemetria Tecnica</div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:5px;">
+            <div class="label">Telemetria Avanzata</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:10px;">
                 <div>
-                    <div class="label" title="Numero di punti campionati ed elaborati al secondo">Data Rate</div>
+                    <div class="label" style="font-size: 0.65rem;">Data Rate</div>
                     <div class="value" id="data-rate" style="font-size: 1.1rem;">0<span class="unit">PT/s</span></div>
                 </div>
                 <div>
-                    <div class="label" title="Percentuale di campo visivo (360°) coperta da dati validi">Copertura FOV</div>
+                    <div class="label" style="font-size: 0.65rem;">Copertura FOV</div>
                     <div class="value" id="fov-cov" style="font-size: 1.1rem;">0<span class="unit">%</span></div>
                 </div>
                 <div>
-                    <div class="label" title="Distanza dell'oggetto più lontano rilevato nella scansione corrente">Distanza Max</div>
+                    <div class="label" style="font-size: 0.65rem;">Distanza Max</div>
                     <div class="value" id="max-scan-dist" style="font-size: 1.1rem;">0<span class="unit">m</span></div>
                 </div>
                 <div>
-                    <div class="label" title="Integrità dati: Numero di pacchetti corrotti (CRC Error) rispetto al totale ricevuto">Frame CRC</div>
-                    <div class="value" id="crc-stats" style="font-size: 0.9rem; color: #aaa; margin-top: 5px;">0 / 0</div>
+                    <div class="label" style="font-size: 0.65rem;">Errori CRC</div>
+                    <div class="value" id="crc-stats" style="font-size: 1.1rem; color: #aaa;">0</div>
                 </div>
             </div>
         </div>
 
         <div class="stat-card">
-            <div class="label">Configurazione Sistema</div>
+            <div class="label">Visualizzazione</div>
             <div style="margin-top:10px">
-                <div class="label" style="margin-bottom:8px">Modalità Colore</div>
+                <div class="label" style="margin-bottom:10px; font-size: 0.7rem;">Mappa Colori</div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                    <button class="btn active" id="modeDistance" style="padding: 8px 5px; font-size: 0.75rem;">Distanza</button>
-                    <button class="btn" id="modeIntensity" style="padding: 8px 5px; font-size: 0.75rem;">Intensità</button>
+                    <button class="btn active" id="modeDistance" style="padding: 10px 5px; font-size: 0.75rem;">Distanza</button>
+                    <button class="btn" id="modeIntensity" style="padding: 10px 5px; font-size: 0.75rem;">Intensità</button>
                 </div>
             </div>
-            <div style="margin-top:15px">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <div class="label" style="margin-bottom:0">Raggio Massimo</div>
-                    <div id="rangeVal" style="font-family:'Orbitron'; font-size:0.8rem; color:var(--primary)">10.0m</div>
+            <div style="margin-top:20px">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div class="label" style="margin-bottom:0; font-size: 0.7rem;">Range Colori</div>
+                    <div id="rangeVal" style="font-family:'Orbitron'; font-size:0.9rem; color:var(--primary)">10.0m</div>
                 </div>
-                <input type="range" id="rangeSlider" min="1" max="10" value="10" step="0.1" style="width:100%; accent-color:var(--primary); cursor:pointer;">
+                <input type="range" id="rangeSlider" min="1" max="25" value="10" step="0.5">
+            </div>
+            <div style="margin-top:20px">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div class="label" style="margin-bottom:0; font-size: 0.7rem;">Dimensione Punti</div>
+                    <div id="pointSizeVal" style="font-family:'Orbitron'; font-size:0.9rem; color:var(--primary)">1.0x</div>
+                </div>
+                <input type="range" id="pointSizeSlider" min="0.1" max="5" value="1" step="0.1">
             </div>
         </div>
 
         <div class="stat-card">
-            <div class="label">Effetti Visivi</div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;">
-                <button class="btn" id="togglePersistence">Persistenza</button>
-                <button class="btn" id="toggleAlarm">Allarme</button>
+            <div class="label">Sistema</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:10px;">
+                <button class="btn" id="togglePersistence" style="font-size: 0.7rem;">Persistenza</button>
+                <button class="btn" id="toggleAlarm" style="font-size: 0.7rem;">Allarme</button>
             </div>
         </div>
     </div>
 
     <div id="main-view">
+        <div class="zoom-info">ZOOM: <span id="zoom-level">100%</span> | PAN: <span id="pan-pos">0,0</span></div>
         <div class="controls-overlay">
             <button class="btn" id="btnPause">PAUSA</button>
-            <button class="btn" id="btnSnapshot">SCREENSHOT</button>
+            <button class="btn" id="btnSnapshot">SAVE IMG</button>
+            <button class="btn" id="btnResetView" style="margin-top: 10px; font-size: 0.7rem;">RESET VISTA</button>
+        </div>
+        <div class="view-controls">
+            <button class="btn btn-icon" id="btnZoomIn" title="Zoom In">+</button>
+            <button class="btn btn-icon" id="btnZoomOut" title="Zoom Out">-</button>
         </div>
         <canvas id="radarCanvas"></canvas>
         <div class="legend" id="legend-box">
-            <div style="margin-bottom:8px; font-weight:bold; color:var(--primary); font-family: 'Orbitron'; font-size: 0.7rem; letter-spacing: 1px;">LEGENDA</div>
+            <div style="margin-bottom:12px; font-weight:bold; color:var(--primary); font-family: 'Orbitron'; font-size: 0.75rem; letter-spacing: 2px;">LEGENDA</div>
             <div id="legend-content"></div>
         </div>
     </div>
@@ -256,10 +387,19 @@
         
         // State
         let currentMaxRange = 10;
+        let currentColorRange = 10;
+        let pointSizeMultiplier = 1.0;
         let currentColorMode = 'distance';
         let isPaused = false;
         let usePersistence = false;
         let alarmEnabled = false;
+        let lastLidarData = null;
+
+        // Pan and Zoom State
+        let offset = { x: 0, y: 0 };
+        let zoom = 1.0;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
         
         // UI Elements
         const rangeSlider = document.getElementById('rangeSlider');
@@ -270,6 +410,8 @@
         const btnConnect = document.getElementById('btnConnect');
         const connStatus = document.getElementById('connection-status');
         const timestampEl = document.getElementById('timestamp');
+        const zoomLevelEl = document.getElementById('zoom-level');
+        const panPosEl = document.getElementById('pan-pos');
 
         // Audio for alarm
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -280,7 +422,7 @@
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.frequency.setValueAtTime(800 + (1 - dist/1.5)*1000, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
             osc.start();
             osc.stop(audioCtx.currentTime + 0.05);
         }
@@ -289,15 +431,96 @@
             const container = document.getElementById('main-view');
             canvas.width = container.clientWidth;
             canvas.height = container.clientHeight;
+            if (lastLidarData) updateLidarData(lastLidarData);
         }
 
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
+        // Interaction Listeners
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragStart.x = e.clientX - offset.x;
+            dragStart.y = e.clientY - offset.y;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                offset.x = e.clientX - dragStart.x;
+                offset.y = e.clientY - dragStart.y;
+                updateViewInfo();
+                if (lastLidarData) updateLidarData(lastLidarData);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.1;
+            const delta = -Math.sign(e.deltaY);
+            const factor = Math.pow(1.1, delta);
+            
+            // Zoom towards mouse position
+            const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+            const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+            
+            const centerX = canvas.width / 2 + offset.x;
+            const centerY = canvas.height / 2 + offset.y;
+            
+            const dx = (mouseX - centerX) / zoom;
+            const dy = (mouseY - centerY) / zoom;
+            
+            const newZoom = Math.min(Math.max(zoom * factor, 0.1), 20);
+            
+            if (newZoom !== zoom) {
+                zoom = newZoom;
+                offset.x = mouseX - (canvas.width / 2 + dx * zoom);
+                offset.y = mouseY - (canvas.height / 2 + dy * zoom);
+                updateViewInfo();
+                if (lastLidarData) updateLidarData(lastLidarData);
+            }
+        }, { passive: false });
+
+        document.getElementById('btnResetView').onclick = () => {
+            offset = { x: 0, y: 0 };
+            zoom = 1.0;
+            updateViewInfo();
+            if (lastLidarData) updateLidarData(lastLidarData);
+        };
+
+        document.getElementById('btnZoomIn').onclick = () => {
+            zoom = Math.min(zoom * 1.2, 20);
+            updateViewInfo();
+            if (lastLidarData) updateLidarData(lastLidarData);
+        };
+
+        document.getElementById('btnZoomOut').onclick = () => {
+            zoom = Math.max(zoom / 1.2, 0.1);
+            updateViewInfo();
+            if (lastLidarData) updateLidarData(lastLidarData);
+        };
+
+        function updateViewInfo() {
+            zoomLevelEl.innerText = Math.round(zoom * 100) + '%';
+            panPosEl.innerText = `${Math.round(offset.x)},${Math.round(offset.y)}`;
+        }
+
         // UI Listeners
         rangeSlider.addEventListener('input', (e) => {
-            currentMaxRange = parseFloat(e.target.value);
-            rangeVal.innerText = currentMaxRange.toFixed(1) + 'm';
+            currentColorRange = parseFloat(e.target.value);
+            rangeVal.innerText = currentColorRange.toFixed(1) + 'm';
+            if (lastLidarData) updateLidarData(lastLidarData);
+        });
+
+        const pointSizeSlider = document.getElementById('pointSizeSlider');
+        const pointSizeVal = document.getElementById('pointSizeVal');
+        pointSizeSlider.addEventListener('input', (e) => {
+            pointSizeMultiplier = parseFloat(e.target.value);
+            pointSizeVal.innerText = pointSizeMultiplier.toFixed(1) + 'x';
+            if (lastLidarData) updateLidarData(lastLidarData);
         });
 
         btnDist.onclick = () => {
@@ -305,6 +528,7 @@
             btnDist.classList.add('active');
             btnInt.classList.remove('active');
             updateLegend();
+            if (lastLidarData) updateLidarData(lastLidarData);
         };
 
         btnInt.onclick = () => {
@@ -312,6 +536,7 @@
             btnInt.classList.add('active');
             btnDist.classList.remove('active');
             updateLegend();
+            if (lastLidarData) updateLidarData(lastLidarData);
         };
 
         document.getElementById('btnPause').onclick = function() {
@@ -338,15 +563,15 @@
             const content = document.getElementById('legend-content');
             if (currentColorMode === 'distance') {
                 content.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#f33;border-radius:2px"></div> Vicino (<1m)</div>
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#fc0;border-radius:2px"></div> Medio</div>
-                    <div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;background:#0f0;border-radius:2px"></div> Lontano</div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="width:14px;height:14px;background:#f33;border-radius:3px;box-shadow:0 0 5px rgba(255,51,51,0.5)"></div> Vicino (<1m)</div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="width:14px;height:14px;background:#fc0;border-radius:3px;box-shadow:0 0 5px rgba(255,204,0,0.5)"></div> Medio</div>
+                    <div style="display:flex;align-items:center;gap:10px"><div style="width:14px;height:14px;background:#0f0;border-radius:3px;box-shadow:0 0 5px rgba(0,255,0,0.5)"></div> Lontano</div>
                 `;
             } else {
                 content.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#0f0;border-radius:2px"></div> Segnale Forte</div>
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#060;border-radius:2px"></div> Segnale Debole</div>
-                    <div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;background:#f33;border-radius:2px"></div> Errore Dati</div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="width:14px;height:14px;background:#0f0;border-radius:3px;box-shadow:0 0 5px rgba(0,255,0,0.5)"></div> Segnale Forte</div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="width:14px;height:14px;background:#060;border-radius:3px"></div> Segnale Debole</div>
+                    <div style="display:flex;align-items:center;gap:10px"><div style="width:14px;height:14px;background:#f33;border-radius:3px;box-shadow:0 0 5px rgba(255,51,51,0.5)"></div> Errore Dati</div>
                 `;
             }
         }
@@ -387,32 +612,47 @@
         };
 
         function getDistanceColor(dist) {
-            const hue = Math.min(120, (dist / currentMaxRange) * 120);
+            const hue = Math.min(120, (dist / currentColorRange) * 120);
             return `hsl(${hue}, 100%, 50%)`;
         }
 
-        function drawGrid(centerX, centerY, scale) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        function drawGrid(centerX, centerY, baseScale) {
+            const scale = baseScale * zoom;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.lineWidth = 1;
-            for (let r = 1; r <= currentMaxRange * 2; r++) {
+            
+            // Dynamic grid steps based on zoom
+            let step = 1;
+            if (zoom < 0.5) step = 2;
+            if (zoom < 0.2) step = 5;
+            if (zoom > 2) step = 0.5;
+            if (zoom > 5) step = 0.1;
+
+            for (let r = step; r <= currentMaxRange * 2; r += step) {
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, r * scale, 0, 2 * Math.PI);
                 ctx.stroke();
-                if (r <= currentMaxRange && r % 2 === 0) {
-                    ctx.fillStyle = '#555';
+                
+                if (r <= currentMaxRange * 2) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
                     ctx.font = '10px Orbitron';
-                    ctx.fillText(r + 'm', centerX + r * scale + 5, centerY - 5);
+                    ctx.fillText(r.toFixed(r < 1 ? 1 : 0) + 'm', centerX + r * scale + 5, centerY - 5);
                 }
             }
+
+            // Crosshair
             ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
             ctx.setLineDash([5, 5]);
             ctx.moveTo(0, centerY); ctx.lineTo(canvas.width, centerY);
             ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height);
             ctx.stroke();
             ctx.setLineDash([]);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
-            for(let a=0; a<360; a+=45) {
-                const rad = (a + 90) * Math.PI / 180;
+
+            // Radial lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            for(let a=0; a<360; a+=30) {
+                const rad = (a - 90) * Math.PI / 180;
                 ctx.beginPath();
                 ctx.moveTo(centerX, centerY);
                 ctx.lineTo(centerX + Math.cos(rad) * currentMaxRange * scale * 2, centerY + Math.sin(rad) * currentMaxRange * scale * 2);
@@ -421,7 +661,9 @@
         }
 
         window.updateLidarData = function(data) {
-            if (isPaused) return;
+            lastLidarData = data;
+            if (isPaused && !isDragging) return;
+            
             timestampEl.innerText = new Date().toLocaleTimeString();
             
             const { scan, intensities, errors, count, hz, rpm, avg_intensity, error_rate, max_dist, fov_coverage, data_rate, total_frames, bad_frames } = data;
@@ -432,11 +674,12 @@
             document.getElementById('data-rate').childNodes[0].nodeValue = Math.round(data_rate);
             document.getElementById('fov-cov').childNodes[0].nodeValue = fov_coverage.toFixed(1);
             document.getElementById('max-scan-dist').childNodes[0].nodeValue = max_dist.toFixed(2);
-            document.getElementById('crc-stats').innerText = `${bad_frames} / ${total_frames}`;
+            document.getElementById('crc-stats').innerText = bad_frames;
 
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const scale = Math.min(canvas.width, canvas.height) / (2 * currentMaxRange);
+            const centerX = canvas.width / 2 + offset.x;
+            const centerY = canvas.height / 2 + offset.y;
+            const baseScale = Math.min(canvas.width, canvas.height) / (2 * currentMaxRange);
+            const scale = baseScale * zoom;
 
             let minDist = 999;
             let minAngle = 0;
@@ -453,45 +696,69 @@
             if (minDist < 1.0) playAlarm(minDist);
 
             if (usePersistence) {
-                ctx.fillStyle = 'rgba(5, 5, 7, 0.2)';
+                ctx.fillStyle = 'rgba(5, 5, 8, 0.2)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             } else {
-                ctx.fillStyle = '#050507';
+                ctx.fillStyle = '#050508';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
 
-            drawGrid(centerX, centerY, scale);
+            drawGrid(centerX, centerY, baseScale);
 
+            // Draw data points
+            ctx.shadowBlur = 0;
             for (let angle = 0; angle < 360; angle++) {
                 const dist = scan[angle];
                 if (dist > 0) {
-                    const rad = (angle + 90) * Math.PI / 180;
+                    const rad = (angle - 90) * Math.PI / 180;
                     const x = centerX + dist * Math.cos(rad) * scale;
                     const y = centerY + dist * Math.sin(rad) * scale;
-                    if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) continue;
-
-                    if (errors[angle]) ctx.fillStyle = 'var(--danger)';
-                    else if (currentColorMode === 'distance') ctx.fillStyle = getDistanceColor(dist);
-                    else ctx.fillStyle = `rgb(0, ${Math.min(255, (intensities[angle]/500)*255)}, 0)`;
                     
+                    // Culling points outside view
+                    if (x < -50 || x > canvas.width + 50 || y < -50 || y > canvas.height + 50) continue;
+
+                    if (errors[angle]) {
+                        ctx.fillStyle = 'var(--danger)';
+                    } else if (currentColorMode === 'distance') {
+                        ctx.fillStyle = getDistanceColor(dist);
+                    } else {
+                        const intensity = Math.min(255, (intensities[angle]/1000)*255);
+                        ctx.fillStyle = `rgb(0, ${intensity}, 0)`;
+                    }
+                    
+                    const basePointSize = (angle === minAngle ? 5 : 2.5);
+                    const pointSize = basePointSize * Math.sqrt(zoom) * pointSizeMultiplier;
                     ctx.beginPath();
-                    ctx.arc(x, y, angle === minAngle ? 4 : 2, 0, 2 * Math.PI);
+                    ctx.arc(x, y, pointSize, 0, 2 * Math.PI);
                     ctx.fill();
+
                     if (angle === minAngle) {
                         ctx.strokeStyle = '#fff';
-                        ctx.lineWidth = 1;
+                        ctx.lineWidth = 2;
                         ctx.stroke();
+                        
+                        // Distance indicator line for closest point
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                        ctx.setLineDash([2, 2]);
+                        ctx.moveTo(centerX, centerY);
+                        ctx.lineTo(x, y);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
                     }
                 }
             }
+
+            // Center sensor indicator
             ctx.fillStyle = '#fff';
             ctx.shadowBlur = 15;
             ctx.shadowColor = 'var(--primary)';
             ctx.beginPath();
-            ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, 6 * Math.sqrt(zoom), 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
         };
     </script>
+
 </body>
 </html>

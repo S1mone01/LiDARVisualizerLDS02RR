@@ -2,20 +2,22 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema LiDAR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistema LiDAR Mobile</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #00ff00;
-            --bg: #050507;
-            --card-bg: #111115;
+            --primary-glow: rgba(0, 255, 0, 0.4);
+            --bg: #0a0a0f;
+            --card-bg: #14141c;
             --text: #e0e0e0;
             --danger: #ff3333;
             --warning: #ffcc00;
             --info: #00ccff;
-            --border: #22222b;
-            --accent: rgba(0, 255, 0, 0.1);
+            --border: #2a2a35;
+            --accent: rgba(0, 255, 0, 0.15);
+            --panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
         }
         body {
             background-color: var(--bg);
@@ -29,6 +31,7 @@
             gap: 12px;
             padding: 12px;
             overflow: hidden;
+            box-sizing: border-box;
         }
         header {
             grid-column: 1 / -1;
@@ -36,29 +39,43 @@
             justify-content: space-between;
             align-items: center;
             background: var(--card-bg);
-            padding: 15px 30px;
+            padding: 12px 20px;
             border-radius: 12px;
             border: 1px solid var(--border);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            box-shadow: var(--panel-shadow);
+            position: relative;
+            z-index: 10;
+        }
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0.3;
         }
         h1 { 
             margin: 0; 
             font-family: 'Orbitron', sans-serif; 
-            font-size: 1.2rem; 
+            font-size: 1.1rem; 
             letter-spacing: 2px;
             color: var(--primary); 
-            text-shadow: 0 0 15px rgba(0,255,0,0.4); 
+            text-shadow: 0 0 15px var(--primary-glow); 
         }
         
         #sidebar {
             background: var(--card-bg);
             border-radius: 12px;
-            padding: 20px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             gap: 15px;
             overflow-y: auto;
             border: 1px solid var(--border);
+            box-shadow: var(--panel-shadow);
         }
 
         .stat-group {
@@ -68,58 +85,95 @@
         }
 
         .stat-card {
-            background: rgba(255, 255, 255, 0.02);
-            padding: 15px;
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 12px;
+            border-radius: 10px;
             border: 1px solid var(--border);
-            border-left: 4px solid #333;
+            border-left: 3px solid #3a3a45;
             transition: all 0.3s ease;
         }
-        .stat-card:hover { background: rgba(255,255,255,0.04); border-color: #444; }
-        .stat-card.alert { border-left-color: var(--danger); animation: pulse 1.5s infinite; }
-        .label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 8px; font-weight: 700; letter-spacing: 1px; }
-        .value { font-family: 'Orbitron', sans-serif; font-size: 1.5rem; font-weight: bold; color: #fff; }
+        .stat-card:hover { 
+            background: rgba(255,255,255,0.06); 
+            border-color: #4a4a5a;
+        }
+        .stat-card.alert { 
+            border-left-color: var(--danger); 
+            animation: pulse 1.5s infinite; 
+            background: rgba(255, 0, 0, 0.05);
+        }
+        .label { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 5px; font-weight: 700; letter-spacing: 1px; }
+        .value { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; font-weight: bold; color: #fff; }
         .unit { font-size: 0.8rem; color: #666; margin-left: 4px; }
 
         #main-view {
-            background: var(--card-bg);
+            background: #050508;
             border-radius: 12px;
             position: relative;
             overflow: hidden;
             border: 1px solid var(--border);
-            box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+            box-shadow: inset 0 0 60px rgba(0,0,0,0.9);
         }
-        canvas { width: 100%; height: 100%; cursor: crosshair; }
+        canvas { 
+            width: 100%; 
+            height: 100%; 
+            cursor: crosshair; 
+            touch-action: none;
+        }
 
         .controls-overlay {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: 15px;
+            right: 15px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             z-index: 100;
+        }
+
+        .view-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+            background: rgba(20, 20, 28, 0.8);
+            padding: 6px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(8px);
         }
         
         .btn {
-            background: #1a1a20;
+            background: #1a1a25;
             border: 1px solid var(--border);
-            color: #aaa;
-            padding: 10px 18px;
+            color: #bbb;
+            padding: 10px 16px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             font-family: 'Orbitron', sans-serif;
-            font-weight: bold;
-            transition: all 0.3s;
+            font-weight: 700;
+            transition: all 0.2s;
             text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
-        .btn:hover { background: #25252f; border-color: var(--primary); color: #fff; }
+        .btn:active { background: #252535; border-color: var(--primary); color: #fff; }
         .btn.active { 
             background: var(--primary); 
             color: #000; 
             border-color: var(--primary); 
-            box-shadow: 0 0 15px rgba(0,255,0,0.3);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .btn-icon {
+            padding: 8px;
+            width: 36px;
+            height: 36px;
         }
 
         @keyframes pulse {
@@ -130,67 +184,118 @@
 
         .legend {
             position: absolute;
-            bottom: 25px;
-            right: 25px;
-            background: rgba(10, 10, 15, 0.9);
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 0.8rem;
+            bottom: 15px;
+            right: 15px;
+            background: rgba(20, 20, 28, 0.85);
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 0.75rem;
             border: 1px solid var(--border);
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--panel-shadow);
         }
 
-        select {
-            appearance: none;
-            background: #1a1a20;
-            border: 1px solid var(--border);
-            color: #fff;
-            padding: 4px 8px;
+        /* Minimal Sliders Style */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #2a2a35;
             border-radius: 5px;
-            font-family: 'Rajdhani', sans-serif;
-            cursor: pointer;
             outline: none;
+            margin: 12px 0;
         }
-        
-        /* Mobile adjustments */
-        @media (max-width: 768px) {
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--primary-glow);
+            border: 3px solid var(--card-bg);
+        }
+
+        .zoom-info {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(0,0,0,0.6);
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-family: 'Orbitron';
+            font-size: 0.65rem;
+            color: #aaa;
+            pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #log-console {
+            background: #050508;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 0.65rem;
+            padding: 8px;
+            overflow-y: auto;
+            flex-grow: 1;
+            height: 100px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            word-wrap: break-word;
+            margin-top: 10px;
+        }
+
+        /* Responsive Mobile Layout */
+        @media (max-width: 900px) {
             body {
                 grid-template-columns: 1fr;
                 grid-template-rows: auto auto 1fr;
                 overflow-y: auto;
+                padding: 8px;
+                gap: 8px;
             }
             #sidebar {
-                height: auto;
-                max-height: 400px;
+                grid-row: 2;
+                max-height: 500px;
+                padding: 12px;
             }
             #main-view {
-                height: 500px;
+                grid-row: 3;
+                height: 60vh;
+                min-height: 450px;
             }
+            header {
+                padding: 10px 15px;
+            }
+            .value { font-size: 1.2rem; }
         }
     </style>
 </head>
 <body>
     <header>
-        <h1>SISTEMA LiDAR (MOBILE)</h1>
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <div id="connection-controls" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 8px; border: 1px solid var(--border);">
-                <button class="btn" id="btnConnect" style="padding: 5px 12px; font-size: 0.7rem;">Cerca USB</button>
+        <h1>LiDAR MOBILE v2.0</h1>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div id="connection-controls" style="display: flex; align-items: center; gap: 10px;">
+                <button class="btn" id="btnConnect" style="padding: 6px 12px; font-size: 0.7rem; border-color: var(--primary);">Cerca USB</button>
             </div>
-            <span id="connection-status" style="font-weight: bold; font-family: 'Orbitron'; font-size: 0.9rem; min-width: 120px; text-align: right;">DISCONNESSO</span>
-            <span id="timestamp" style="color: #666; font-size: 1rem; font-family: 'Orbitron'; margin-left: 10px;">--:--:--</span>
+            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                <span id="connection-status" style="font-weight: bold; font-family: 'Orbitron'; font-size: 0.8rem; color: var(--danger);">DISCONNESSO</span>
+                <span id="timestamp" style="color: #666; font-size: 0.75rem; font-family: 'Orbitron';">--:--:--</span>
+            </div>
         </div>
     </header>
 
     <div id="sidebar">
         <div class="stat-group">
             <div class="stat-card">
-                <div class="label">Punti Scansione</div>
+                <div class="label">Punti</div>
                 <div class="value" id="point-count">0</div>
             </div>
             <div class="stat-card">
                 <div class="label">Frequenza</div>
                 <div class="value" id="hz">0.0<span class="unit">Hz</span></div>
-                <div style="font-size: 0.75rem; color: #888; font-family: 'Orbitron'; margin-top: 4px; font-weight: bold;">
+                <div style="font-size: 0.7rem; color: #888; font-family: 'Orbitron'; margin-top: 2px;">
                     <span id="rpm">0</span> <span style="font-size: 0.6rem;">RPM</span>
                 </div>
             </div>
@@ -202,61 +307,73 @@
         </div>
 
         <div class="stat-card">
-            <div class="label">Telemetria Tecnica</div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:5px;">
+            <div class="label">Telemetria</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:5px;">
                 <div>
-                    <div class="label">Data Rate</div>
-                    <div class="value" id="data-rate" style="font-size: 1.1rem;">0<span class="unit">PT/s</span></div>
+                    <div class="label" style="font-size: 0.6rem;">Rate</div>
+                    <div class="value" id="data-rate" style="font-size: 1rem;">0<span class="unit">PT/s</span></div>
                 </div>
                 <div>
-                    <div class="label">Copertura FOV</div>
-                    <div class="value" id="fov-cov" style="font-size: 1.1rem;">0<span class="unit">%</span></div>
+                    <div class="label" style="font-size: 0.6rem;">FOV</div>
+                    <div class="value" id="fov-cov" style="font-size: 1rem;">0<span class="unit">%</span></div>
                 </div>
                 <div>
-                    <div class="label">Distanza Max</div>
-                    <div class="value" id="max-scan-dist" style="font-size: 1.1rem;">0<span class="unit">m</span></div>
+                    <div class="label" style="font-size: 0.6rem;">Dist Max</div>
+                    <div class="value" id="max-scan-dist" style="font-size: 1rem;">0<span class="unit">m</span></div>
                 </div>
                 <div>
-                    <div class="label">Frame CRC</div>
-                    <div class="value" id="crc-stats" style="font-size: 0.9rem; color: #aaa; margin-top: 5px;">0 / 0</div>
+                    <div class="label" style="font-size: 0.6rem;">CRC</div>
+                    <div class="value" id="crc-stats" style="font-size: 1rem; color: #aaa;">0</div>
                 </div>
             </div>
         </div>
 
         <div class="stat-card">
-            <div class="label">Configurazione Sistema</div>
-            <div style="margin-top:10px">
-                <div class="label" style="margin-bottom:8px">Modalità Colore</div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                    <button class="btn active" id="modeDistance" style="padding: 8px 5px; font-size: 0.75rem;">Distanza</button>
-                    <button class="btn" id="modeIntensity" style="padding: 8px 5px; font-size: 0.75rem;">Intensità</button>
-                </div>
+            <div class="label">Visualizzazione</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:5px;">
+                <button class="btn active" id="modeDistance" style="padding: 8px 4px; font-size: 0.7rem;">Distanza</button>
+                <button class="btn" id="modeIntensity" style="padding: 8px 4px; font-size: 0.7rem;">Intensità</button>
             </div>
             <div style="margin-top:15px">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <div class="label" style="margin-bottom:0">Raggio Massimo</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <div class="label" style="margin-bottom:0; font-size: 0.65rem;">Range Colori</div>
                     <div id="rangeVal" style="font-family:'Orbitron'; font-size:0.8rem; color:var(--primary)">10.0m</div>
                 </div>
-                <input type="range" id="rangeSlider" min="1" max="10" value="10" step="0.1" style="width:100%; accent-color:var(--primary); cursor:pointer;">
+                <input type="range" id="rangeSlider" min="1" max="25" value="10" step="0.5">
+            </div>
+            <div style="margin-top:10px">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <div class="label" style="margin-bottom:0; font-size: 0.65rem;">Dim. Punti</div>
+                    <div id="pointSizeVal" style="font-family:'Orbitron'; font-size:0.8rem; color:var(--primary)">1.0x</div>
+                </div>
+                <input type="range" id="pointSizeSlider" min="0.5" max="5" value="1" step="0.1">
             </div>
         </div>
-        
-        <div class="stat-card" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 150px;">
-            <div class="label">System Logs</div>
-            <div id="log-console" style="background: #000; color: #0f0; font-family: monospace; font-size: 0.65rem; padding: 8px; overflow-y: auto; flex-grow: 1; height: 120px; border: 1px solid var(--border); border-radius: 4px; word-wrap: break-word;">
-                > Avvio interfaccia...<br>
+
+        <div class="stat-card" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <div class="label">Log Sistema</div>
+            <div id="log-console">> In attesa di USB...</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:10px;">
+                <button class="btn" id="togglePersistence" style="font-size: 0.65rem;">Persistenza</button>
+                <button class="btn" id="toggleAlarm" style="font-size: 0.65rem;">Allarme</button>
             </div>
         </div>
     </div>
 
     <div id="main-view">
+        <div class="zoom-info">ZOOM: <span id="zoom-level">100%</span> | PAN: <span id="pan-pos">0,0</span></div>
         <div class="controls-overlay">
             <button class="btn" id="btnPause">PAUSA</button>
-            <button class="btn" id="btnSnapshot">SCREENSHOT</button>
+            <button class="btn" id="btnSnapshot">SAVE IMG</button>
+            <button class="btn" id="btnResetView" style="margin-top: 5px; font-size: 0.65rem;">RESET</button>
+        </div>
+        <div class="view-controls">
+            <button class="btn btn-icon" id="btnZoomIn">+</button>
+            <button class="btn btn-icon" id="btnZoomOut">-</button>
         </div>
         <canvas id="radarCanvas"></canvas>
         <div class="legend" id="legend-box">
-            <div style="margin-bottom:8px; font-weight:bold; color:var(--primary); font-family: 'Orbitron'; font-size: 0.7rem; letter-spacing: 1px;">LEGENDA</div>
+            <div style="margin-bottom:8px; font-weight:bold; color:var(--primary); font-family: 'Orbitron'; font-size: 0.65rem; letter-spacing: 1.5px;">LEGENDA</div>
             <div id="legend-content"></div>
         </div>
     </div>
@@ -267,10 +384,19 @@
         
         // State
         let currentMaxRange = 10;
+        let currentColorRange = 10;
+        let pointSizeMultiplier = 1.0;
         let currentColorMode = 'distance';
         let isPaused = false;
         let usePersistence = false;
         let alarmEnabled = false;
+        let lastLidarData = null;
+
+        // Pan and Zoom State
+        let offset = { x: 0, y: 0 };
+        let zoom = 1.0;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
         
         // UI Elements
         const rangeSlider = document.getElementById('rangeSlider');
@@ -280,20 +406,130 @@
         const btnConnect = document.getElementById('btnConnect');
         const connStatus = document.getElementById('connection-status');
         const timestampEl = document.getElementById('timestamp');
+        const zoomLevelEl = document.getElementById('zoom-level');
+        const panPosEl = document.getElementById('pan-pos');
+
+        // Audio for alarm
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playAlarm(dist) {
+            if (!alarmEnabled || dist > 1.5) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.setValueAtTime(800 + (1 - dist/1.5)*1000, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.05);
+            } catch(e) {}
+        }
 
         function resizeCanvas() {
             const container = document.getElementById('main-view');
             canvas.width = container.clientWidth;
             canvas.height = container.clientHeight;
+            if (lastLidarData) updateLidarData(JSON.stringify(lastLidarData));
         }
 
         window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        setTimeout(resizeCanvas, 100);
+
+        // Interaction Listeners (Mouse + Touch)
+        function handleStart(x, y) {
+            isDragging = true;
+            dragStart.x = x - offset.x;
+            dragStart.y = y - offset.y;
+        }
+
+        function handleMove(x, y) {
+            if (isDragging) {
+                offset.x = x - dragStart.x;
+                offset.y = y - dragStart.y;
+                updateViewInfo();
+                if (lastLidarData) renderData(lastLidarData);
+            }
+        }
+
+        function handleEnd() {
+            isDragging = false;
+        }
+
+        canvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', handleEnd);
+
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                handleStart(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1) {
+                handleMove(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', handleEnd);
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = -Math.sign(e.deltaY);
+            const factor = Math.pow(1.1, delta);
+            applyZoom(factor, e.clientX, e.clientY);
+        }, { passive: false });
+
+        function applyZoom(factor, clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = clientX - rect.left;
+            const mouseY = clientY - rect.top;
+            
+            const centerX = canvas.width / 2 + offset.x;
+            const centerY = canvas.height / 2 + offset.y;
+            
+            const dx = (mouseX - centerX) / zoom;
+            const dy = (mouseY - centerY) / zoom;
+            
+            const newZoom = Math.min(Math.max(zoom * factor, 0.1), 20);
+            
+            if (newZoom !== zoom) {
+                zoom = newZoom;
+                offset.x = mouseX - (canvas.width / 2 + dx * zoom);
+                offset.y = mouseY - (canvas.height / 2 + dy * zoom);
+                updateViewInfo();
+                if (lastLidarData) renderData(lastLidarData);
+            }
+        }
+
+        document.getElementById('btnResetView').onclick = () => {
+            offset = { x: 0, y: 0 };
+            zoom = 1.0;
+            updateViewInfo();
+            if (lastLidarData) renderData(lastLidarData);
+        };
+
+        document.getElementById('btnZoomIn').onclick = () => applyZoom(1.2, canvas.width/2 + offset.x, canvas.height/2 + offset.y);
+        document.getElementById('btnZoomOut').onclick = () => applyZoom(1/1.2, canvas.width/2 + offset.x, canvas.height/2 + offset.y);
+
+        function updateViewInfo() {
+            zoomLevelEl.innerText = Math.round(zoom * 100) + '%';
+            panPosEl.innerText = `${Math.round(offset.x)},${Math.round(offset.y)}`;
+        }
 
         // UI Listeners
         rangeSlider.addEventListener('input', (e) => {
-            currentMaxRange = parseFloat(e.target.value);
-            rangeVal.innerText = currentMaxRange.toFixed(1) + 'm';
+            currentColorRange = parseFloat(e.target.value);
+            rangeVal.innerText = currentColorRange.toFixed(1) + 'm';
+            if (lastLidarData) renderData(lastLidarData);
+        });
+
+        const pointSizeSlider = document.getElementById('pointSizeSlider');
+        const pointSizeVal = document.getElementById('pointSizeVal');
+        pointSizeSlider.addEventListener('input', (e) => {
+            pointSizeMultiplier = parseFloat(e.target.value);
+            pointSizeVal.innerText = pointSizeMultiplier.toFixed(1) + 'x';
+            if (lastLidarData) renderData(lastLidarData);
         });
 
         btnDist.onclick = () => {
@@ -301,6 +537,7 @@
             btnDist.classList.add('active');
             btnInt.classList.remove('active');
             updateLegend();
+            if (lastLidarData) renderData(lastLidarData);
         };
 
         btnInt.onclick = () => {
@@ -308,6 +545,7 @@
             btnInt.classList.add('active');
             btnDist.classList.remove('active');
             updateLegend();
+            if (lastLidarData) renderData(lastLidarData);
         };
 
         document.getElementById('btnPause').onclick = function() {
@@ -315,36 +553,50 @@
             this.classList.toggle('active');
             this.innerText = isPaused ? 'RIPRENDI' : 'PAUSA';
         };
-
-        btnConnect.onclick = () => {
-            appendLog("Richiesta USB inviata via URL app://", "var(--info)");
-            window.location.href = "app://connect_usb";
-            
-            connStatus.innerText = "RICERCA...";
-            connStatus.style.color = "var(--warning)";
+        document.getElementById('togglePersistence').onclick = function() {
+            usePersistence = !usePersistence;
+            this.classList.toggle('active');
+        };
+        document.getElementById('toggleAlarm').onclick = function() {
+            alarmEnabled = !alarmEnabled;
+            this.classList.toggle('active');
+            if (alarmEnabled && audioCtx.state === 'suspended') audioCtx.resume();
+        };
+        document.getElementById('btnSnapshot').onclick = () => {
+            const link = document.createElement('a');
+            link.download = `lidar_mobile_${Date.now()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
         };
 
         function updateLegend() {
             const content = document.getElementById('legend-content');
             if (currentColorMode === 'distance') {
                 content.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#f33;border-radius:2px"></div> Vicino (<1m)</div>
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#fc0;border-radius:2px"></div> Medio</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:12px;height:12px;background:#f33;border-radius:2px"></div> <1m</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:12px;height:12px;background:#fc0;border-radius:2px"></div> Medio</div>
                     <div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;background:#0f0;border-radius:2px"></div> Lontano</div>
                 `;
             } else {
                 content.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#0f0;border-radius:2px"></div> Segnale Forte</div>
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#060;border-radius:2px"></div> Segnale Debole</div>
-                    <div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;background:#f33;border-radius:2px"></div> Errore Dati</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:12px;height:12px;background:#0f0;border-radius:2px"></div> Forte</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:12px;height:12px;background:#060;border-radius:2px"></div> Debole</div>
+                    <div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;background:#f33;border-radius:2px"></div> Errore</div>
                 `;
             }
         }
         updateLegend();
 
-        // Android bridge functions
+        // Android Bridge Logic
+        btnConnect.onclick = () => {
+            appendLog("Richiesta USB inviata...", "var(--info)");
+            window.location.href = "app://connect_usb";
+            connStatus.innerText = "RICERCA...";
+            connStatus.style.color = "var(--warning)";
+        };
+
         window.updateStatus = function(status, color) {
-            connStatus.innerText = status.length > 20 ? "ERRORE" : status;
+            connStatus.innerText = status.length > 20 ? "USB OK" : status;
             if (color) connStatus.style.color = color;
         };
         
@@ -358,42 +610,90 @@
         };
 
         function getDistanceColor(dist) {
-            const hue = Math.min(120, (dist / currentMaxRange) * 120);
+            const hue = Math.min(120, (dist / currentColorRange) * 120);
             return `hsl(${hue}, 100%, 50%)`;
         }
 
-        function drawGrid(centerX, centerY, scale) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        function drawGrid(centerX, centerY, baseScale) {
+            const scale = baseScale * zoom;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             ctx.lineWidth = 1;
-            for (let r = 1; r <= currentMaxRange * 2; r++) {
+            
+            let step = 1;
+            if (zoom < 0.5) step = 2;
+            if (zoom > 2) step = 0.5;
+
+            for (let r = step; r <= currentMaxRange * 2; r += step) {
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, r * scale, 0, 2 * Math.PI);
                 ctx.stroke();
+                
+                if (r <= currentMaxRange * 2) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.font = '9px Orbitron';
+                    ctx.fillText(r.toFixed(r < 1 ? 1 : 0) + 'm', centerX + r * scale + 5, centerY - 5);
+                }
             }
+
+            // Crosshair
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.setLineDash([5, 5]);
+            ctx.moveTo(0, centerY); ctx.lineTo(canvas.width, centerY);
+            ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
         }
 
         window.updateLidarData = function(dataStr) {
-            if (isPaused) return;
-            const data = JSON.parse(dataStr);
+            try {
+                const data = JSON.parse(dataStr);
+                lastLidarData = data;
+                if (!isPaused || isDragging) renderData(data);
+            } catch(e) {
+                console.error("Parse error", e);
+            }
+        };
+
+        function renderData(data) {
             timestampEl.innerText = new Date().toLocaleTimeString();
             
-            const { scan, intensities, errors, count, hz, rpm, data_rate, fov_coverage, max_dist, bad_frames, total_frames } = data;
+            const { scan, intensities, errors, count, hz, rpm, avg_intensity, error_rate, max_dist, fov_coverage, data_rate, total_frames, bad_frames } = data;
 
             document.getElementById('point-count').innerText = count;
-            document.getElementById('hz').childNodes[0].nodeValue = hz.toFixed(2);
-            document.getElementById('rpm').innerText = Math.round(rpm);
-            document.getElementById('data-rate').childNodes[0].nodeValue = Math.round(data_rate);
-            document.getElementById('fov-cov').childNodes[0].nodeValue = fov_coverage.toFixed(1);
-            document.getElementById('max-scan-dist').childNodes[0].nodeValue = max_dist.toFixed(2);
-            document.getElementById('crc-stats').innerText = `${bad_frames} / ${total_frames}`;
+            document.getElementById('hz').childNodes[0].nodeValue = (hz || 0).toFixed(1);
+            document.getElementById('rpm').innerText = Math.round(rpm || 0);
+            document.getElementById('data-rate').childNodes[0].nodeValue = Math.round(data_rate || 0);
+            document.getElementById('fov-cov').childNodes[0].nodeValue = (fov_coverage || 0).toFixed(1);
+            document.getElementById('max-scan-dist').childNodes[0].nodeValue = (max_dist || 0).toFixed(2);
+            document.getElementById('crc-stats').innerText = bad_frames || 0;
 
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const scale = Math.min(canvas.width, canvas.height) / (2 * currentMaxRange);
+            const centerX = canvas.width / 2 + offset.x;
+            const centerY = canvas.height / 2 + offset.y;
+            const baseScale = Math.min(canvas.width, canvas.height) / (2 * currentMaxRange);
+            const scale = baseScale * zoom;
 
-            ctx.fillStyle = '#050507';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            drawGrid(centerX, centerY, scale);
+            let minDist = 999;
+            let minAngle = 0;
+            for (let i = 0; i < 360; i++) {
+                const d = scan[i];
+                if (d > 0 && d < minDist) { minDist = d; minAngle = i; }
+            }
+
+            document.getElementById('min-dist').innerText = minDist < 999 ? minDist.toFixed(2) : "0.00";
+            document.getElementById('min-angle').innerText = minAngle;
+            document.getElementById('closest-card').classList.toggle('alert', minDist < 1.0);
+            if (minDist < 1.0) playAlarm(minDist);
+
+            if (usePersistence) {
+                ctx.fillStyle = 'rgba(5, 5, 8, 0.2)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#050508';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            drawGrid(centerX, centerY, baseScale);
 
             for (let angle = 0; angle < 360; angle++) {
                 const dist = scan[angle];
@@ -401,17 +701,38 @@
                     const rad = (angle + 90) * Math.PI / 180;
                     const x = centerX + dist * Math.cos(rad) * scale;
                     const y = centerY + dist * Math.sin(rad) * scale;
-
-                    if (errors[angle]) ctx.fillStyle = 'var(--danger)';
-                    else if (currentColorMode === 'distance') ctx.fillStyle = getDistanceColor(dist);
-                    else ctx.fillStyle = `rgb(0, ${Math.min(255, (intensities[angle]/500)*255)}, 0)`;
                     
+                    if (x < -20 || x > canvas.width + 20 || y < -20 || y > canvas.height + 20) continue;
+
+                    if (errors[angle]) {
+                        ctx.fillStyle = 'var(--danger)';
+                    } else if (currentColorMode === 'distance') {
+                        ctx.fillStyle = getDistanceColor(dist);
+                    } else {
+                        const intensity = Math.min(255, (intensities[angle]/1000)*255);
+                        ctx.fillStyle = `rgb(0, ${intensity}, 0)`;
+                    }
+                    
+                    const basePointSize = (angle === minAngle ? 4 : 2);
+                    const pointSize = basePointSize * Math.sqrt(zoom) * pointSizeMultiplier;
                     ctx.beginPath();
-                    ctx.arc(x, y, 2, 0, 2 * Math.PI);
+                    ctx.arc(x, y, pointSize, 0, 2 * Math.PI);
                     ctx.fill();
+
+                    if (angle === minAngle && minDist < 999) {
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
                 }
             }
-        };
+
+            // Center sensor
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 5 * Math.sqrt(zoom), 0, Math.PI * 2);
+            ctx.fill();
+        }
     </script>
 </body>
 </html>
