@@ -235,11 +235,34 @@ class AndroidUSBSerial:
                     pass
             update()
 
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class LidarServerHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith('/connect_usb'):
+            self.server.usb_manager.start_reading()
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(b'OK')
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        pass # Disabilita i log
+
 # Kivy App
 class LidarApp(App):
     def build(self):
         try:
             self.usb_manager = AndroidUSBSerial(self)
+            
+            # Start background HTTP server for JS to Python communication
+            server = HTTPServer(('127.0.0.1', 0), LidarServerHandler)
+            server.usb_manager = self.usb_manager
+            self.server_port = server.server_address[1]
+            threading.Thread(target=server.serve_forever, daemon=True).start()
             
             if platform == 'android':
                 @run_on_main_thread
@@ -258,42 +281,19 @@ class LidarApp(App):
                     settings.setAllowContentAccess(True)
                     try:
                         settings.setMixedContentMode(0)
+                        settings.setAllowFileAccessFromFileURLs(True)
+                        settings.setAllowUniversalAccessFromFileURLs(True)
                     except:
                         pass
                     
-                    class CustomWebViewClient(PythonJavaClass):
-                        __javainterfaces__ = ['android/webkit/WebViewClient']
-                        
-                        def __init__(self, usb_handler):
-                            super().__init__()
-                            self.usb_handler = usb_handler
-                            
-                        @java_method('(Landroid/webkit/WebView;Ljava/lang/String;)Z')
-                        def shouldOverrideUrlLoading(self, view, url):
-                            if url.startswith("app://"):
-                                command = url.split("app://")[1]
-                                if command == "connect_usb":
-                                    self.usb_handler.start_reading()
-                                return True
-                            return False
-                            
-                        @java_method('(Landroid/webkit/WebView;Landroid/webkit/WebResourceRequest;)Z')
-                        def shouldOverrideUrlLoading(self, view, request):
-                            url = request.getUrl().toString()
-                            if url.startswith("app://"):
-                                command = url.split("app://")[1]
-                                if command == "connect_usb":
-                                    self.usb_handler.start_reading()
-                                return True
-                            return False
-
-                    self.webview.setWebViewClient(CustomWebViewClient(self.usb_manager))
+                    self.webview.setWebViewClient(WebViewClient())
                     self.webview.setWebChromeClient(WebChromeClient())
                     
                     # Caricamento file locale invece di Flask
                     base_path = os.path.dirname(os.path.abspath(__file__))
                     index_path = os.path.join(base_path, "templates", "index.html")
-                    self.webview.loadUrl("file://" + index_path)
+                    # Passiamo la porta via query string
+                    self.webview.loadUrl("file://" + index_path + "?port=" + str(self.server_port))
                     
                     activity.setContentView(self.webview)
                 

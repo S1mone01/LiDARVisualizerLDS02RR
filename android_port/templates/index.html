@@ -310,7 +310,12 @@
         };
 
         btnConnect.onclick = () => {
-            window.location.href = "app://connect_usb";
+            const urlParams = new URLSearchParams(window.location.search);
+            const serverPort = urlParams.get('port') || "8080";
+            
+            fetch(`http://127.0.0.1:${serverPort}/connect_usb`)
+                .catch(e => console.log("Errore fetch USB:", e));
+                
             connStatus.innerText = "RICERCA...";
             connStatus.style.color = "var(--warning)";
         };
