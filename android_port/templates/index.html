@@ -353,9 +353,8 @@
         <div class="stat-card" style="flex-grow: 1; display: flex; flex-direction: column;">
             <div class="label">Log Sistema</div>
             <div id="log-console">> In attesa di USB...</div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:10px;">
+            <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:10px;">
                 <button class="btn" id="togglePersistence" style="font-size: 0.65rem;">Persistenza</button>
-                <button class="btn" id="toggleAlarm" style="font-size: 0.65rem;">Allarme</button>
             </div>
         </div>
     </div>
@@ -364,7 +363,6 @@
         <div class="zoom-info">ZOOM: <span id="zoom-level">100%</span> | PAN: <span id="pan-pos">0,0</span></div>
         <div class="controls-overlay">
             <button class="btn" id="btnPause">PAUSA</button>
-            <button class="btn" id="btnSnapshot">SAVE IMG</button>
             <button class="btn" id="btnResetView" style="margin-top: 5px; font-size: 0.65rem;">RESET</button>
         </div>
         <div class="view-controls">
@@ -397,6 +395,12 @@
         let zoom = 1.0;
         let isDragging = false;
         let dragStart = { x: 0, y: 0 };
+
+        // Touch Multi-point State
+        let initialTouchDist = 0;
+        let initialZoom = 1.0;
+        let initialOffset = { x: 0, y: 0 };
+        let touchMidPoint = { x: 0, y: 0 };
         
         // UI Elements
         const rangeSlider = document.getElementById('rangeSlider');
@@ -429,7 +433,7 @@
             const container = document.getElementById('main-view');
             canvas.width = container.clientWidth;
             canvas.height = container.clientHeight;
-            if (lastLidarData) updateLidarData(JSON.stringify(lastLidarData));
+            if (lastLidarData) renderData(lastLidarData);
         }
 
         window.addEventListener('resize', resizeCanvas);
@@ -459,19 +463,71 @@
         window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
         window.addEventListener('mouseup', handleEnd);
 
+        // Advanced Touch Handlers (Pinch to Zoom + Pan)
         canvas.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
                 handleStart(e.touches[0].clientX, e.touches[0].clientY);
+            } else if (e.touches.length === 2) {
+                isDragging = false; // Stop single finger pan
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                initialTouchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                initialZoom = zoom;
+                initialOffset = { ...offset };
+                touchMidPoint = {
+                    x: (t1.clientX + t2.clientX) / 2,
+                    y: (t1.clientY + t2.clientY) / 2
+                };
             }
-        }, { passive: true });
+        }, { passive: false });
 
         window.addEventListener('touchmove', (e) => {
             if (e.touches.length === 1) {
                 handleMove(e.touches[0].clientX, e.touches[0].clientY);
-            }
-        }, { passive: true });
+            } else if (e.touches.length === 2) {
+                e.preventDefault();
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                const newDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                const factor = newDist / initialTouchDist;
+                
+                const newMidPoint = {
+                    x: (t1.clientX + t2.clientX) / 2,
+                    y: (t1.clientY + t2.clientY) / 2
+                };
 
-        window.addEventListener('touchend', handleEnd);
+                // Apply zoom relative to the initial midpoint
+                const rect = canvas.getBoundingClientRect();
+                const midX = touchMidPoint.x - rect.left;
+                const midY = touchMidPoint.y - rect.top;
+                
+                const centerX = canvas.width / 2 + initialOffset.x;
+                const centerY = canvas.height / 2 + initialOffset.y;
+                
+                const dx = (midX - centerX) / initialZoom;
+                const dy = (midY - centerY) / initialZoom;
+                
+                const newZoom = Math.min(Math.max(initialZoom * factor, 0.1), 20);
+                
+                zoom = newZoom;
+                
+                // Panning based on midpoint movement + zoom adjustment
+                offset.x = (newMidPoint.x - touchMidPoint.x) + (midX - (canvas.width / 2 + dx * zoom));
+                offset.y = (newMidPoint.y - touchMidPoint.y) + (midY - (canvas.height / 2 + dy * zoom));
+                
+                updateViewInfo();
+                if (lastLidarData) renderData(lastLidarData);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                initialTouchDist = 0;
+            }
+            if (e.touches.length === 0) {
+                handleEnd();
+            }
+        });
 
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
@@ -557,17 +613,11 @@
             usePersistence = !usePersistence;
             this.classList.toggle('active');
         };
-        document.getElementById('toggleAlarm').onclick = function() {
+        function toggleAlarm() {
             alarmEnabled = !alarmEnabled;
-            this.classList.toggle('active');
+            // Removed alarm button, but kept logic if needed later
             if (alarmEnabled && audioCtx.state === 'suspended') audioCtx.resume();
-        };
-        document.getElementById('btnSnapshot').onclick = () => {
-            const link = document.createElement('a');
-            link.download = `lidar_mobile_${Date.now()}.png`;
-            link.href = canvas.toDataURL();
-            link.click();
-        };
+        }
 
         function updateLegend() {
             const content = document.getElementById('legend-content');
