@@ -6,7 +6,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,html,js,css
 version = 0.1
 
-requirements = python3,kivy,pyjnius,android
+requirements = python3,kivy,pyjnius,android,usb4a,usbserial4a
 
 orientation = landscape
 fullscreen = 1

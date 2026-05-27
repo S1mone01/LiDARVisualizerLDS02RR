@@ -112,8 +112,7 @@ class AndroidUSBSerial:
     def __init__(self, app_instance):
         self.app = app_instance
         self.device = None
-        self.connection = None
-        self.endpoint_in = None
+        self.serial_port = None
         self.stop_thread = threading.Event()
         self.lidar_logic = LidarLogic()
         
@@ -131,89 +130,52 @@ class AndroidUSBSerial:
         if platform != 'android':
             return
             
-        @run_on_ui_thread
-        def _start_reading_ui():
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                Context = autoclass('android.content.Context')
-                UsbConstants = autoclass('android.hardware.usb.UsbConstants')
-                PendingIntent = autoclass('android.app.PendingIntent')
-                Intent = autoclass('android.content.Intent')
-                
-                activity = PythonActivity.mActivity
-                usb_manager = activity.getSystemService(Context.USB_SERVICE)
-                device_list = usb_manager.getDeviceList()
-                
-                if device_list.isEmpty():
-                    self.log_to_js("Nessun disp. USB", "var(--danger)")
-                    return
-                
-                # Prendi il primo dispositivo (spesso è l'unico collegato)
-                self.device = device_list.values().iterator().next()
-                
-                # Controlla i permessi
-                if not usb_manager.hasPermission(self.device):
-                    self.log_to_js("Richiesta Permesso...", "var(--warning)")
-                    
-                    ACTION_USB_PERMISSION = "org.lidar.sistemalidar.USB_PERMISSION"
-                    intent = Intent(ACTION_USB_PERMISSION)
-                    intent.setPackage(activity.getPackageName())
-                    
-                    # Android 12+ (API 31) richiede FLAG_MUTABLE (33554432)
-                    # Oltre a FLAG_UPDATE_CURRENT (134217728)
-                    flags = 33554432 | 134217728
-                    
-                    permission_intent = PendingIntent.getBroadcast(activity, 0, intent, flags)
-                    usb_manager.requestPermission(self.device, permission_intent)
-                    self.log_to_js("PREMI DI NUOVO DOPO L'OK", "var(--warning)")
-                    return
+        try:
+            from usb4a import usb
+            from usbserial4a import serial4a
 
-                self.connection = usb_manager.openDevice(self.device)
-                if not self.connection:
-                    self.log_to_js("Errore apertura", "var(--danger)")
-                    return
-                
-                interface = self.device.getInterface(0)
-                self.connection.claimInterface(interface, True)
-                
-                # FTDI Configurazione Baud Rate (115200) e parametri linea (8N1)
-                self.connection.controlTransfer(0x40, 0, 0, 0, None, 0, 1000) # Reset
-                self.connection.controlTransfer(0x40, 3, 0x001A, 0, None, 0, 1000) # Baud 115200
-                self.connection.controlTransfer(0x40, 4, 8, 0, None, 0, 1000) # 8N1
+            usb_device_list = usb.get_usb_device_list()
+            if not usb_device_list:
+                self.log_to_js("Nessun disp. USB", "var(--danger)")
+                return
+            
+            # Prendi il primo dispositivo USB collegato
+            self.device = usb_device_list[0]
+            
+            # Controllo permessi ufficiale tramite usb4a
+            if not usb.has_usb_permission(self.device):
+                self.log_to_js("Richiesta Permesso...", "var(--warning)")
+                usb.request_usb_permission(self.device)
+                self.log_to_js("PREMI DI NUOVO DOPO L'OK", "var(--warning)")
+                return
 
-                # Cerca l'endpoint IN
-                self.endpoint_in = None
-                for i in range(interface.getEndpointCount()):
-                    ep = interface.getEndpoint(i)
-                    if ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK and \
-                       ep.getDirection() == UsbConstants.USB_DIR_IN:
-                        self.endpoint_in = ep
-                        break
+            # Ottieni e apri la porta seriale usando usbserial4a (gestisce i driver FTDI nativamente)
+            device_name = self.device.getDeviceName()
+            self.serial_port = serial4a.get_serial_port(device_name, 115200, timeout=0.1)
+            
+            if not self.serial_port:
+                self.log_to_js("Errore apertura", "var(--danger)")
+                return
                 
-                if not self.endpoint_in:
-                    self.log_to_js("Endpoint non trovato", "var(--danger)")
-                    return
+            if not self.serial_port.is_open:
+                self.serial_port.open()
 
-                self.stop_thread.clear()
-                threading.Thread(target=self._read_loop, daemon=True).start()
-                self.log_to_js("CONNESSO", "var(--primary)")
-            except Exception as e:
-                import traceback
-                print(traceback.format_exc())
-                self.log_to_js(f"Err: {str(e)[:25]}", "var(--danger)")
-
-        _start_reading_ui()
+            self.stop_thread.clear()
+            threading.Thread(target=self._read_loop, daemon=True).start()
+            self.log_to_js("CONNESSO", "var(--primary)")
+            
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            self.log_to_js(f"Err: {str(e)[:25]}", "var(--danger)")
 
     def _read_loop(self):
-        buffer = bytearray(4096)
         while not self.stop_thread.is_set():
             try:
-                num_bytes = self.connection.bulkTransfer(self.endpoint_in, buffer, 4096, 100)
-                # FTDI chips mandano sempre 2 byte di stato modem all'inizio di ogni pacchetto USB IN
-                if num_bytes > 2:
-                    chunk = bytes(buffer[2:num_bytes])
-                    payloads = self.lidar_logic.process_data(chunk)
+                # usbserial4a si comporta come pyserial, decodifica da solo i pacchetti FTDI
+                data = self.serial_port.read(4096)
+                if data and len(data) > 0:
+                    payloads = self.lidar_logic.process_data(data)
                     for p in payloads:
                         self.send_to_js(p)
             except Exception as e:
