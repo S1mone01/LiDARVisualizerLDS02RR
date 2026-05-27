@@ -261,18 +261,33 @@ class LidarApp(App):
                     except:
                         pass
                     
-                    class WebAppInterface(PythonJavaClass):
-                        __javainterfaces__ = ['android/webkit/JavascriptInterface']
-                        def __init__(self, usb_handler):
-                            self.usb_handler = usb_handler
-                            super().__init__()
+                    class CustomWebViewClient(PythonJavaClass):
+                        __javainterfaces__ = ['android/webkit/WebViewClient']
                         
-                        @java_method('()V')
-                        def connect_usb(self):
-                            self.usb_handler.start_reading()
+                        def __init__(self, usb_handler):
+                            super().__init__()
+                            self.usb_handler = usb_handler
+                            
+                        @java_method('(Landroid/webkit/WebView;Ljava/lang/String;)Z')
+                        def shouldOverrideUrlLoading(self, view, url):
+                            if url.startswith("app://"):
+                                command = url.split("app://")[1]
+                                if command == "connect_usb":
+                                    self.usb_handler.start_reading()
+                                return True
+                            return False
+                            
+                        @java_method('(Landroid/webkit/WebView;Landroid/webkit/WebResourceRequest;)Z')
+                        def shouldOverrideUrlLoading(self, view, request):
+                            url = request.getUrl().toString()
+                            if url.startswith("app://"):
+                                command = url.split("app://")[1]
+                                if command == "connect_usb":
+                                    self.usb_handler.start_reading()
+                                return True
+                            return False
 
-                    self.webview.addJavascriptInterface(WebAppInterface(self.usb_manager), "python")
-                    self.webview.setWebViewClient(WebViewClient())
+                    self.webview.setWebViewClient(CustomWebViewClient(self.usb_manager))
                     self.webview.setWebChromeClient(WebChromeClient())
                     
                     # Caricamento file locale invece di Flask

@@ -310,13 +310,9 @@
         };
 
         btnConnect.onclick = () => {
-            if (window.python) {
-                window.python.connect_usb();
-                connStatus.innerText = "RICERCA...";
-                connStatus.style.color = "var(--warning)";
-            } else {
-                alert("Backend non disponibile");
-            }
+            window.location.href = "app://connect_usb";
+            connStatus.innerText = "RICERCA...";
+            connStatus.style.color = "var(--warning)";
         };
 
         function updateLegend() {
