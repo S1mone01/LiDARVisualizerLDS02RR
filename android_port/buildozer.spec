@@ -20,6 +20,7 @@ android.ndk = 25b
 android.manifest.intent_filters = intent_filters.json
 android.manifest.meta_data = [ {"name": "android.hardware.usb.action.USB_DEVICE_ATTACHED", "resource": "@xml/device_filter"} ]
 android.manifest.cleartext_traffic = True
+android.manifest.application_attributes = android:usesCleartextTraffic="true"
 
 [buildozer]
 log_level = 2
