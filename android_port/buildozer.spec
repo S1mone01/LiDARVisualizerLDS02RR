@@ -19,6 +19,7 @@ android.ndk = 25b
 # Importante per il supporto USB
 android.manifest.intent_filters = intent_filters.json
 android.manifest.meta_data = [ {"name": "android.hardware.usb.action.USB_DEVICE_ATTACHED", "resource": "@xml/device_filter"} ]
+android.manifest.cleartext_traffic = True
 
 [buildozer]
 log_level = 2
