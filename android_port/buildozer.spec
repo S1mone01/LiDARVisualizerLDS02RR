@@ -11,6 +11,7 @@ requirements = python3,kivy,pyjnius,android,usb4a,usbserial4a
 orientation = landscape
 fullscreen = 1
 android.permissions = INTERNET
+android.add_src = java_src
 android.api = 31
 android.minapi = 21
 android.sdk = 33

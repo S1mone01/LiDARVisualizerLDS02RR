@@ -232,42 +232,19 @@ class AndroidUSBSerial:
                     pass
             update()
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-class LidarServerHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path.startswith('/connect_usb'):
-            self.server.usb_manager.start_reading()
-            self.send_response(200)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(b'OK')
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def log_message(self, format, *args):
-        pass # Disabilita i log
-
 # Kivy App
 class LidarApp(App):
     def build(self):
         try:
             self.usb_manager = AndroidUSBSerial(self)
             
-            # Start background HTTP server for JS to Python communication
-            server = HTTPServer(('127.0.0.1', 0), LidarServerHandler)
-            server.usb_manager = self.usb_manager
-            self.server_port = server.server_address[1]
-            threading.Thread(target=server.serve_forever, daemon=True).start()
-            
             if platform == 'android':
                 @run_on_ui_thread
                 def setup_webview():
-                    from jnius import autoclass
+                    from jnius import autoclass, PythonJavaClass, java_method
                     WebView = autoclass('android.webkit.WebView')
-                    WebViewClient = autoclass('android.webkit.WebViewClient')
                     WebChromeClient = autoclass('android.webkit.WebChromeClient')
+                    CustomWebViewClient = autoclass('org.lidar.CustomWebViewClient')
                     activity = autoclass('org.kivy.android.PythonActivity').mActivity
                     
                     self.webview = WebView(activity)
@@ -283,14 +260,27 @@ class LidarApp(App):
                     except:
                         pass
                     
-                    self.webview.setWebViewClient(WebViewClient())
+                    # Interfaccia Python -> Java per intercettare l'URL
+                    class UsbCallback(PythonJavaClass):
+                        __javainterfaces__ = ['org/lidar/CustomWebViewClient$Callback']
+                        __javacontext__ = 'app'
+                        
+                        def __init__(self, usb_manager):
+                            super().__init__()
+                            self.usb_manager = usb_manager
+                            
+                        @java_method('()V')
+                        def onConnectUsb(self):
+                            self.usb_manager.start_reading()
+
+                    self.usb_callback = UsbCallback(self.usb_manager)
+                    self.webview.setWebViewClient(CustomWebViewClient(self.usb_callback))
                     self.webview.setWebChromeClient(WebChromeClient())
                     
-                    # Caricamento file locale invece di Flask
+                    # Caricamento file locale
                     base_path = os.path.dirname(os.path.abspath(__file__))
                     index_path = os.path.join(base_path, "templates", "index.html")
-                    # Passiamo la porta via query string
-                    self.webview.loadUrl("file://" + index_path + "?port=" + str(self.server_port))
+                    self.webview.loadUrl("file://" + index_path)
                     
                     activity.setContentView(self.webview)
                 
