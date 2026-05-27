@@ -153,14 +153,13 @@ class AndroidUSBSerial:
             if not usb_manager.hasPermission(self.device):
                 self.log_to_js("Richiesta Permesso...", "var(--warning)")
                 
-                ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION"
+                ACTION_USB_PERMISSION = "org.lidar.sistemalidar.USB_PERMISSION"
                 intent = Intent(ACTION_USB_PERMISSION)
+                intent.setPackage(activity.getPackageName())
                 
-                flags = 0
-                try:
-                    flags = PendingIntent.FLAG_MUTABLE
-                except:
-                    flags = PendingIntent.FLAG_UPDATE_CURRENT
+                # Android 12+ (API 31) richiede FLAG_MUTABLE (33554432) o FLAG_IMMUTABLE (67108864)
+                # Oltre a FLAG_UPDATE_CURRENT (134217728)
+                flags = 33554432 | 134217728
                 
                 permission_intent = PendingIntent.getBroadcast(activity, 0, intent, flags)
                 usb_manager.requestPermission(self.device, permission_intent)
