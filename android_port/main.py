@@ -118,10 +118,14 @@ class AndroidUSBSerial:
         
     def log_to_js(self, msg, color=None):
         if platform == 'android':
+            import base64
+            # Usa Base64 per evitare errori di sintassi JS a causa di apici nei messaggi
+            safe_msg = base64.b64encode(msg.encode('utf-8')).decode('utf-8')
+            safe_color = color or 'var(--text)'
             @run_on_ui_thread
             def do_log():
                 try:
-                    self.app.webview.loadUrl(f"javascript:updateStatus('{msg}', '{color or 'var(--text)'}')")
+                    self.app.webview.loadUrl(f"javascript:updateStatus(atob('{safe_msg}'), '{safe_color}')")
                 except:
                     pass
             do_log()
@@ -133,30 +137,48 @@ class AndroidUSBSerial:
         @run_on_ui_thread
         def _start_reading_ui():
             try:
-                from usb4a import usb
+                from jnius import autoclass
                 from usbserial4a import serial4a
 
-                usb_device_list = usb.get_usb_device_list()
-                if not usb_device_list:
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                Context = autoclass('android.content.Context')
+                PendingIntent = autoclass('android.app.PendingIntent')
+                Intent = autoclass('android.content.Intent')
+                
+                activity = PythonActivity.mActivity
+                usb_manager = activity.getSystemService(Context.USB_SERVICE)
+                
+                device_list = usb_manager.getDeviceList()
+                if device_list.isEmpty():
                     self.log_to_js("Nessun disp. USB", "var(--danger)")
                     return
                 
                 # Prendi il primo dispositivo USB collegato
-                self.device = usb_device_list[0]
+                self.device = device_list.values().iterator().next()
                 
-                # Controllo permessi ufficiale tramite usb4a
-                if not usb.has_usb_permission(self.device):
+                # Controllo permessi
+                if not usb_manager.hasPermission(self.device):
                     self.log_to_js("Richiesta Permesso...", "var(--warning)")
-                    usb.request_usb_permission(self.device)
+                    
+                    ACTION_USB_PERMISSION = "org.lidar.sistemalidar.USB_PERMISSION"
+                    intent = Intent(ACTION_USB_PERMISSION)
+                    intent.setPackage(activity.getPackageName())
+                    
+                    # 33554432 = FLAG_MUTABLE
+                    # 134217728 = FLAG_UPDATE_CURRENT
+                    flags = 33554432 | 134217728
+                    
+                    permission_intent = PendingIntent.getBroadcast(activity, 0, intent, flags)
+                    usb_manager.requestPermission(self.device, permission_intent)
                     self.log_to_js("PREMI DI NUOVO DOPO L'OK", "var(--warning)")
                     return
 
-                # Ottieni e apri la porta seriale usando usbserial4a (gestisce i driver FTDI nativamente)
+                # Ottieni e apri la porta seriale usando usbserial4a
                 device_name = self.device.getDeviceName()
                 self.serial_port = serial4a.get_serial_port(device_name, 115200, timeout=0.1)
                 
                 if not self.serial_port:
-                    self.log_to_js("Errore apertura", "var(--danger)")
+                    self.log_to_js("Errore driver FTDI", "var(--danger)")
                     return
                     
                 if not self.serial_port.is_open:
@@ -169,7 +191,7 @@ class AndroidUSBSerial:
             except Exception as e:
                 import traceback
                 print(traceback.format_exc())
-                self.log_to_js(f"Err: {str(e)[:25]}", "var(--danger)")
+                self.log_to_js(f"Err: {str(e)[:30]}", "var(--danger)")
 
         _start_reading_ui()
 
