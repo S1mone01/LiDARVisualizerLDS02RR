@@ -142,47 +142,86 @@ class AndroidUSBSerial:
         if platform != 'android':
             return
         try:
-            from jnius import autoclass
+            from jnius import autoclass, cast
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             Context = autoclass('android.content.Context')
             UsbManager = autoclass('android.hardware.usb.UsbManager')
             UsbConstants = autoclass('android.hardware.usb.UsbConstants')
+            PendingIntent = autoclass('android.app.PendingIntent')
+            Intent = autoclass('android.content.Intent')
+            
             activity = PythonActivity.mActivity
             usb_manager = activity.getSystemService(Context.USB_SERVICE)
             device_list = usb_manager.getDeviceList()
+            
             if device_list.isEmpty():
                 self.log_to_js("Nessun disp. USB", "var(--danger)")
                 return
+            
+            # Prendi il primo dispositivo (spesso è l'unico collegato)
             self.device = device_list.values().iterator().next()
+            
+            # Controlla i permessi
+            if not usb_manager.hasPermission(self.device):
+                self.log_to_js("Richiesta Permesso...", "var(--warning)")
+                
+                ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION"
+                intent = Intent(ACTION_USB_PERMISSION)
+                
+                # Flag per PendingIntent (richiesto da API 31+)
+                flags = 0
+                try:
+                    flags = PendingIntent.FLAG_MUTABLE
+                except:
+                    flags = PendingIntent.FLAG_UPDATE_CURRENT
+                
+                permission_intent = PendingIntent.getBroadcast(activity, 0, intent, flags)
+                usb_manager.requestPermission(self.device, permission_intent)
+                return
+
             self.connection = usb_manager.openDevice(self.device)
             if not self.connection:
                 self.log_to_js("Errore apertura", "var(--danger)")
                 return
+            
             interface = self.device.getInterface(0)
             self.connection.claimInterface(interface, True)
+            
+            # Cerca l'endpoint IN
+            self.endpoint_in = None
             for i in range(interface.getEndpointCount()):
                 ep = interface.getEndpoint(i)
                 if ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK and \
                    ep.getDirection() == UsbConstants.USB_DIR_IN:
                     self.endpoint_in = ep
                     break
+            
+            if not self.endpoint_in:
+                self.log_to_js("Endpoint non trovato", "var(--danger)")
+                return
+
             self.stop_thread.clear()
             threading.Thread(target=self._read_loop, daemon=True).start()
             self.log_to_js("CONNESSO", "var(--primary)")
         except Exception as e:
-            self.log_to_js(f"Errore: {str(e)[:20]}", "var(--danger)")
+            self.log_to_js(f"Errore: {str(e)[:30]}", "var(--danger)")
 
     def _read_loop(self):
         buffer = bytearray(4096)
         while not self.stop_thread.is_set():
             try:
-                num_bytes = self.connection.bulkTransfer(self.endpoint_in, buffer, 4096, 100)
+                # bulkTransfer(endpoint, buffer, length, timeout)
+                num_bytes = self.connection.bulkTransfer(self.endpoint_in, buffer, 4096, 1000)
                 if num_bytes > 0:
                     chunk = bytes(buffer[:num_bytes])
                     payloads = self.lidar_logic.process_data(chunk)
                     for p in payloads:
                         self.send_to_js(p)
-            except Exception:
+                elif num_bytes < 0:
+                    # Errore o timeout prolungato
+                    pass
+            except Exception as e:
+                self.log_to_js("Errore lettura", "var(--danger)")
                 break
 
     def send_to_js(self, payload):
@@ -190,7 +229,10 @@ class AndroidUSBSerial:
             json_data = json.dumps(payload)
             @run_on_main_thread
             def update():
-                self.app.webview.evaluateJavascript(f"updateLidarData('{json_data}')", None)
+                try:
+                    self.app.webview.evaluateJavascript(f"updateLidarData('{json_data}')", None)
+                except:
+                    pass
             update()
 
 # Kivy App
@@ -214,15 +256,19 @@ class LidarApp(App):
                     settings.setDomStorageEnabled(True)
                     settings.setAllowFileAccess(True)
                     settings.setAllowContentAccess(True)
-                    try: settings.setMixedContentMode(0)
-                    except: pass
+                    try:
+                        settings.setMixedContentMode(0)
+                    except:
+                        pass
                     
                     class WebAppInterface(PythonJavaClass):
                         __javainterfaces__ = ['android/webkit/JavascriptInterface']
                         def __init__(self, usb_handler):
                             self.usb_handler = usb_handler
-                        @java_method('(Ljava/lang/String;)V')
-                        def connect_usb(self, msg=None):
+                            super().__init__()
+                        
+                        @java_method('()V')
+                        def connect_usb(self):
                             self.usb_handler.start_reading()
 
                     self.webview.addJavascriptInterface(WebAppInterface(self.usb_manager), "python")
