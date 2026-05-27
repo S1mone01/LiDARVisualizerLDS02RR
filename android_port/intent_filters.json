@@ -1,0 +1,5 @@
+[
+  {
+    "action": "android.hardware.usb.action.USB_DEVICE_ATTACHED"
+  }
+]
