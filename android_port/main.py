@@ -130,44 +130,48 @@ class AndroidUSBSerial:
         if platform != 'android':
             return
             
-        try:
-            from usb4a import usb
-            from usbserial4a import serial4a
+        @run_on_ui_thread
+        def _start_reading_ui():
+            try:
+                from usb4a import usb
+                from usbserial4a import serial4a
 
-            usb_device_list = usb.get_usb_device_list()
-            if not usb_device_list:
-                self.log_to_js("Nessun disp. USB", "var(--danger)")
-                return
-            
-            # Prendi il primo dispositivo USB collegato
-            self.device = usb_device_list[0]
-            
-            # Controllo permessi ufficiale tramite usb4a
-            if not usb.has_usb_permission(self.device):
-                self.log_to_js("Richiesta Permesso...", "var(--warning)")
-                usb.request_usb_permission(self.device)
-                self.log_to_js("PREMI DI NUOVO DOPO L'OK", "var(--warning)")
-                return
-
-            # Ottieni e apri la porta seriale usando usbserial4a (gestisce i driver FTDI nativamente)
-            device_name = self.device.getDeviceName()
-            self.serial_port = serial4a.get_serial_port(device_name, 115200, timeout=0.1)
-            
-            if not self.serial_port:
-                self.log_to_js("Errore apertura", "var(--danger)")
-                return
+                usb_device_list = usb.get_usb_device_list()
+                if not usb_device_list:
+                    self.log_to_js("Nessun disp. USB", "var(--danger)")
+                    return
                 
-            if not self.serial_port.is_open:
-                self.serial_port.open()
+                # Prendi il primo dispositivo USB collegato
+                self.device = usb_device_list[0]
+                
+                # Controllo permessi ufficiale tramite usb4a
+                if not usb.has_usb_permission(self.device):
+                    self.log_to_js("Richiesta Permesso...", "var(--warning)")
+                    usb.request_usb_permission(self.device)
+                    self.log_to_js("PREMI DI NUOVO DOPO L'OK", "var(--warning)")
+                    return
 
-            self.stop_thread.clear()
-            threading.Thread(target=self._read_loop, daemon=True).start()
-            self.log_to_js("CONNESSO", "var(--primary)")
-            
-        except Exception as e:
-            import traceback
-            print(traceback.format_exc())
-            self.log_to_js(f"Err: {str(e)[:25]}", "var(--danger)")
+                # Ottieni e apri la porta seriale usando usbserial4a (gestisce i driver FTDI nativamente)
+                device_name = self.device.getDeviceName()
+                self.serial_port = serial4a.get_serial_port(device_name, 115200, timeout=0.1)
+                
+                if not self.serial_port:
+                    self.log_to_js("Errore apertura", "var(--danger)")
+                    return
+                    
+                if not self.serial_port.is_open:
+                    self.serial_port.open()
+
+                self.stop_thread.clear()
+                threading.Thread(target=self._read_loop, daemon=True).start()
+                self.log_to_js("CONNESSO", "var(--primary)")
+                
+            except Exception as e:
+                import traceback
+                print(traceback.format_exc())
+                self.log_to_js(f"Err: {str(e)[:25]}", "var(--danger)")
+
+        _start_reading_ui()
 
     def _read_loop(self):
         while not self.stop_thread.is_set():
