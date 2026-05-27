@@ -6,7 +6,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,html,js,css
 version = 0.1
 
-requirements = python3,kivy,flask,jinja2,markupsafe==2.1.1,itsdangerous==2.1.2,click,werkzeug,pyjnius,android
+requirements = python3,kivy,flask,jinja2,click,werkzeug,pyjnius,android
 
 orientation = landscape
 fullscreen = 1
