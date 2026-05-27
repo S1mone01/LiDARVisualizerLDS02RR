@@ -23,6 +23,28 @@ def index():
     except Exception as e:
         return f"Errore Template: {str(e)}"
 
+# Helper per eseguire codice sul thread principale di Android senza dipendere da android.runnable
+def run_on_main_thread(func):
+    if platform != 'android':
+        return func
+    def wrapper(*args, **kwargs):
+        from jnius import autoclass, PythonJavaClass, java_method
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        Runnable = autoclass('java.lang.Runnable')
+        activity = PythonActivity.mActivity
+
+        class PythonRunnable(PythonJavaClass):
+            __javainterfaces__ = ['java/lang/Runnable']
+            def __init__(self, callback):
+                super(PythonRunnable, self).__init__()
+                self.callback = callback
+            @java_method('()V')
+            def run(self):
+                self.callback()
+
+        activity.runOnUiThread(PythonRunnable(lambda: func(*args, **kwargs)))
+    return wrapper
+
 # Logica di Parsing LiDAR (estratta da lidar_read.py)
 class LidarLogic:
     def __init__(self):
@@ -136,7 +158,6 @@ class AndroidUSBSerial:
         
     def log_to_js(self, msg, color=None):
         if platform == 'android':
-            from android.runnable import run_on_main_thread
             @run_on_main_thread
             def do_log():
                 self.app.webview.evaluateJavascript(f"updateStatus('{msg}', '{color or 'var(--text)'}')", None)
@@ -167,8 +188,6 @@ class AndroidUSBSerial:
             # Richiesta permesso se non ce l'abbiamo
             if not usb_manager.hasPermission(self.device):
                 self.log_to_js("Richiesta permesso...", "var(--warning)")
-                # In un'app reale servirebbe un PendingIntent, Buildozer lo gestisce con il manifest
-                # ma qui proviamo l'apertura diretta
                 
             self.connection = usb_manager.openDevice(self.device)
             if not self.connection:
@@ -191,9 +210,6 @@ class AndroidUSBSerial:
                 self.log_to_js("Endpoint non trovato", "var(--danger)")
                 return
 
-            # Configurazione Baud Rate 115200 per FT232RL (Comandi nativi)
-            # Nota: Questa è una parte complessa che solitamente fa la libreria usb-serial-for-android
-            # Per ora avviamo il thread di lettura
             self.stop_thread.clear()
             threading.Thread(target=self._read_loop, daemon=True).start()
             self.log_to_js("CONNESSO", "var(--primary)")
@@ -217,7 +233,6 @@ class AndroidUSBSerial:
 
     def send_to_js(self, payload):
         if platform == 'android':
-            from android.runnable import run_on_main_thread
             json_data = json.dumps(payload)
             @run_on_main_thread
             def update():
@@ -234,8 +249,6 @@ class LidarApp(App):
             threading.Thread(target=self.run_flask, daemon=True).start()
             
             if platform == 'android':
-                from android.runnable import run_on_main_thread
-                
                 @run_on_main_thread
                 def setup_webview():
                     from jnius import autoclass, PythonJavaClass, java_method
@@ -270,7 +283,7 @@ class LidarApp(App):
                 
                 setup_webview()
                 from kivy.uix.widget import Widget
-                return Widget() # Placeholder mentre la WebView carica sul thread principale
+                return Widget() 
             else:
                 from kivy.uix.label import Label
                 return Label(text="Interfaccia Desktop non disponibile")
