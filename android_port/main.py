@@ -227,47 +227,59 @@ class AndroidUSBSerial:
 # Kivy App
 class LidarApp(App):
     def build(self):
-        self.usb_manager = AndroidUSBSerial(self)
-        
-        # Avvia Flask in background
-        threading.Thread(target=lambda: app.run(host='127.0.0.1', port=5000, debug=False), daemon=True).start()
-        
-        if platform == 'android':
-            from jnius import autoclass, PythonJavaClass, java_method
+        try:
+            self.usb_manager = AndroidUSBSerial(self)
             
-            WebView = autoclass('android.webkit.WebView')
-            WebViewClient = autoclass('android.webkit.WebViewClient')
-            WebChromeClient = autoclass('android.webkit.WebChromeClient')
-            activity = autoclass('org.kivy.android.PythonActivity').mActivity
+            # Avvia Flask in background
+            threading.Thread(target=self.run_flask, daemon=True).start()
             
-            self.webview = WebView(activity)
-            settings = self.webview.getSettings()
-            settings.setJavaScriptEnabled(True)
-            settings.setDomStorageEnabled(True)
-            settings.setAllowFileAccess(True)
-            
-            # Bridge per chiamate da JS a Python
-            class WebAppInterface(PythonJavaClass):
-                __javainterfaces__ = ['android/webkit/JavascriptInterface']
-                def __init__(self, usb_handler):
-                    self.usb_handler = usb_handler
+            if platform == 'android':
+                from jnius import autoclass, PythonJavaClass, java_method
                 
-                @java_method('(Ljava/lang/String;)V')
-                def connect_usb(self, msg=None):
-                    self.usb_handler.start_reading()
+                WebView = autoclass('android.webkit.WebView')
+                WebViewClient = autoclass('android.webkit.WebViewClient')
+                WebChromeClient = autoclass('android.webkit.WebChromeClient')
+                activity = autoclass('org.kivy.android.PythonActivity').mActivity
+                
+                self.webview = WebView(activity)
+                settings = self.webview.getSettings()
+                settings.setJavaScriptEnabled(True)
+                settings.setDomStorageEnabled(True)
+                settings.setAllowFileAccess(True)
+                
+                # Bridge per chiamate da JS a Python
+                class WebAppInterface(PythonJavaClass):
+                    __javainterfaces__ = ['android/webkit/JavascriptInterface']
+                    def __init__(self, usb_handler):
+                        self.usb_handler = usb_handler
+                    
+                    @java_method('(Ljava/lang/String;)V')
+                    def connect_usb(self, msg=None):
+                        self.usb_handler.start_reading()
 
-            # Espone l'interfaccia a JavaScript come 'window.python'
-            self.webview.addJavascriptInterface(WebAppInterface(self.usb_manager), "python")
-            
-            self.webview.setWebViewClient(WebViewClient())
-            self.webview.setWebChromeClient(WebChromeClient())
-            
-            self.webview.loadUrl("http://127.0.0.1:5000")
-            activity.setContentView(self.webview)
-            return self.webview
-        else:
+                self.webview.addJavascriptInterface(WebAppInterface(self.usb_manager), "python")
+                self.webview.setWebViewClient(WebViewClient())
+                self.webview.setWebChromeClient(WebChromeClient())
+                
+                self.webview.loadUrl("http://127.0.0.1:5000")
+                activity.setContentView(self.webview)
+                return self.webview
+            else:
+                from kivy.uix.label import Label
+                return Label(text="Interfaccia Desktop non disponibile")
+                
+        except Exception as e:
+            # Se crasha, mostra l'errore sullo schermo invece di chiudersi
             from kivy.uix.label import Label
-            return Label(text="Interfaccia Desktop non disponibile in questa modalità")
+            import traceback
+            return Label(text=f"CRASH ALL'AVVIO:\n{str(e)}\n\n{traceback.format_exc()}", 
+                         font_size='14sp', color=(1, 0, 0, 1), halign='left')
+
+    def run_flask(self):
+        try:
+            app.run(host='127.0.0.1', port=5000, debug=False)
+        except Exception as e:
+            print(f"FLASK ERROR: {e}")
 
     def connect_usb(self):
         self.usb_manager.start_reading()
