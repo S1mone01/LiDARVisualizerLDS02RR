@@ -3,34 +3,16 @@ import threading
 import json
 import time
 import sys
-from flask import Flask, render_template
 from kivy.app import App
 from kivy.utils import platform
 
-# Gestione percorsi per Android
-if platform == 'android':
-    base_path = os.path.dirname(os.path.abspath(__file__))
-    template_folder = os.path.join(base_path, 'templates')
-else:
-    template_folder = 'templates'
-
-app = Flask(__name__, template_folder=template_folder)
-
-@app.route('/')
-def index():
-    try:
-        return render_template('index.html')
-    except Exception as e:
-        return f"Errore Template: {str(e)}"
-
-# Helper per eseguire codice sul thread principale di Android senza dipendere da android.runnable
+# Helper per eseguire codice sul thread principale di Android
 def run_on_main_thread(func):
     if platform != 'android':
         return func
     def wrapper(*args, **kwargs):
         from jnius import autoclass, PythonJavaClass, java_method
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        Runnable = autoclass('java.lang.Runnable')
         activity = PythonActivity.mActivity
 
         class PythonRunnable(PythonJavaClass):
@@ -45,7 +27,7 @@ def run_on_main_thread(func):
         activity.runOnUiThread(PythonRunnable(lambda: func(*args, **kwargs)))
     return wrapper
 
-# Logica di Parsing LiDAR (estratta da lidar_read.py)
+# Logica di Parsing LiDAR
 class LidarLogic:
     def __init__(self):
         self.lidar_data = {
@@ -79,17 +61,14 @@ class LidarLogic:
     def process_data(self, new_data):
         self.buffer.extend(new_data)
         payloads = []
-        
         while len(self.buffer) >= 22:
             if self.buffer[0] == 0xFA:
                 frame = self.buffer[:22]
                 self.lidar_data["total_frames"] += 1
-                
                 if self.has_valid_crc(frame):
                     index = frame[1] - 0xA0
                     speed_raw = frame[2] | (frame[3] << 8)
                     self.lidar_data["rpm"] = speed_raw / 64.0
-                    
                     if index == 0:
                         now = time.time()
                         dt = now - self.lidar_data["last_rotation_time"]
@@ -98,14 +77,11 @@ class LidarLogic:
                                 self.lidar_data["hz"] = 1.0 / dt
                             else:
                                 self.lidar_data["hz"] = (self.lidar_data["hz"] * 0.9) + ((1.0 / dt) * 0.1)
-                        
                         self.lidar_data["last_rotation_time"] = now
                         self.lidar_data["scan"] = list(self.current_scan)
                         self.lidar_data["intensities"] = list(self.current_intensities)
                         self.lidar_data["errors"] = list(self.current_errors)
-                        
                         points = sum(1 for d in self.current_scan if d > 0)
-                        
                         payload = {
                             'scan': self.lidar_data["scan"],
                             'intensities': self.lidar_data["intensities"],
@@ -120,7 +96,6 @@ class LidarLogic:
                             'bad_frames': self.lidar_data["bad_frames"]
                         }
                         payloads.append(payload)
-
                     for j in range(4):
                         offset = 4 + 4*j
                         b0, b1, b2, b3 = frame[offset:offset+4]
@@ -146,7 +121,7 @@ class LidarLogic:
                 self.buffer = self.buffer[1:]
         return payloads
 
-# Gestore USB per Android (Implementazione Reale)
+# Gestore USB per Android
 class AndroidUSBSerial:
     def __init__(self, app_instance):
         self.app = app_instance
@@ -165,55 +140,35 @@ class AndroidUSBSerial:
 
     def start_reading(self):
         if platform != 'android':
-            self.log_to_js("Solo Android", "var(--danger)")
             return
-            
         try:
-            from jnius import autoclass, cast
+            from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             Context = autoclass('android.content.Context')
             UsbManager = autoclass('android.hardware.usb.UsbManager')
             UsbConstants = autoclass('android.hardware.usb.UsbConstants')
-            
             activity = PythonActivity.mActivity
             usb_manager = activity.getSystemService(Context.USB_SERVICE)
-            
             device_list = usb_manager.getDeviceList()
             if device_list.isEmpty():
                 self.log_to_js("Nessun disp. USB", "var(--danger)")
                 return
-
             self.device = device_list.values().iterator().next()
-            
-            # Richiesta permesso se non ce l'abbiamo
-            if not usb_manager.hasPermission(self.device):
-                self.log_to_js("Richiesta permesso...", "var(--warning)")
-                
             self.connection = usb_manager.openDevice(self.device)
             if not self.connection:
                 self.log_to_js("Errore apertura", "var(--danger)")
                 return
-
-            # Configurazione interfaccia FTDI (solitamente la 0)
             interface = self.device.getInterface(0)
             self.connection.claimInterface(interface, True)
-            
-            # Trova endpoint di input
             for i in range(interface.getEndpointCount()):
                 ep = interface.getEndpoint(i)
                 if ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK and \
                    ep.getDirection() == UsbConstants.USB_DIR_IN:
                     self.endpoint_in = ep
                     break
-            
-            if not self.endpoint_in:
-                self.log_to_js("Endpoint non trovato", "var(--danger)")
-                return
-
             self.stop_thread.clear()
             threading.Thread(target=self._read_loop, daemon=True).start()
             self.log_to_js("CONNESSO", "var(--primary)")
-            
         except Exception as e:
             self.log_to_js(f"Errore: {str(e)[:20]}", "var(--danger)")
 
@@ -221,7 +176,6 @@ class AndroidUSBSerial:
         buffer = bytearray(4096)
         while not self.stop_thread.is_set():
             try:
-                # Lettura sincrona dall'endpoint USB
                 num_bytes = self.connection.bulkTransfer(self.endpoint_in, buffer, 4096, 100)
                 if num_bytes > 0:
                     chunk = bytes(buffer[:num_bytes])
@@ -245,14 +199,10 @@ class LidarApp(App):
         try:
             self.usb_manager = AndroidUSBSerial(self)
             
-            # Avvia Flask in background
-            threading.Thread(target=self.run_flask, daemon=True).start()
-            
             if platform == 'android':
                 @run_on_main_thread
                 def setup_webview():
                     from jnius import autoclass, PythonJavaClass, java_method
-                    
                     WebView = autoclass('android.webkit.WebView')
                     WebViewClient = autoclass('android.webkit.WebViewClient')
                     WebChromeClient = autoclass('android.webkit.WebChromeClient')
@@ -264,20 +214,13 @@ class LidarApp(App):
                     settings.setDomStorageEnabled(True)
                     settings.setAllowFileAccess(True)
                     settings.setAllowContentAccess(True)
+                    try: settings.setMixedContentMode(0)
+                    except: pass
                     
-                    # Forza Mixed Content Mode (0 = MIXED_CONTENT_ALWAYS_ALLOW)
-                    # Necessario su Android 5.0+ per caricare HTTP locale
-                    try:
-                        settings.setMixedContentMode(0)
-                    except:
-                        pass
-                    
-                    # Bridge per chiamate da JS a Python
                     class WebAppInterface(PythonJavaClass):
                         __javainterfaces__ = ['android/webkit/JavascriptInterface']
                         def __init__(self, usb_handler):
                             self.usb_handler = usb_handler
-                        
                         @java_method('(Ljava/lang/String;)V')
                         def connect_usb(self, msg=None):
                             self.usb_handler.start_reading()
@@ -286,7 +229,11 @@ class LidarApp(App):
                     self.webview.setWebViewClient(WebViewClient())
                     self.webview.setWebChromeClient(WebChromeClient())
                     
-                    self.webview.loadUrl("http://localhost:5000")
+                    # Caricamento file locale invece di Flask
+                    base_path = os.path.dirname(os.path.abspath(__file__))
+                    index_path = os.path.join(base_path, "templates", "index.html")
+                    self.webview.loadUrl("file://" + index_path)
+                    
                     activity.setContentView(self.webview)
                 
                 setup_webview()
@@ -294,23 +241,12 @@ class LidarApp(App):
                 return Widget() 
             else:
                 from kivy.uix.label import Label
-                return Label(text="Interfaccia Desktop non disponibile")
+                return Label(text="Esegui su Android")
                 
         except Exception as e:
-            # Se crasha, mostra l'errore sullo schermo invece di chiudersi
             from kivy.uix.label import Label
             import traceback
-            return Label(text=f"CRASH ALL'AVVIO:\n{str(e)}\n\n{traceback.format_exc()}", 
-                         font_size='14sp', color=(1, 0, 0, 1), halign='left')
-
-    def run_flask(self):
-        try:
-            app.run(host='127.0.0.1', port=5000, debug=False)
-        except Exception as e:
-            print(f"FLASK ERROR: {e}")
-
-    def connect_usb(self):
-        self.usb_manager.start_reading()
+            return Label(text=f"CRASH:\n{str(e)}\n{traceback.format_exc()}")
 
 if __name__ == '__main__':
     LidarApp().run()
