@@ -130,74 +130,80 @@ class AndroidUSBSerial:
     def start_reading(self):
         if platform != 'android':
             return
-        try:
-            from jnius import autoclass
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            Context = autoclass('android.content.Context')
-            UsbConstants = autoclass('android.hardware.usb.UsbConstants')
-            PendingIntent = autoclass('android.app.PendingIntent')
-            Intent = autoclass('android.content.Intent')
             
-            activity = PythonActivity.mActivity
-            usb_manager = activity.getSystemService(Context.USB_SERVICE)
-            device_list = usb_manager.getDeviceList()
-            
-            if device_list.isEmpty():
-                self.log_to_js("Nessun disp. USB", "var(--danger)")
-                return
-            
-            # Prendi il primo dispositivo (spesso è l'unico collegato)
-            self.device = device_list.values().iterator().next()
-            
-            # Controlla i permessi
-            if not usb_manager.hasPermission(self.device):
-                self.log_to_js("Richiesta Permesso...", "var(--warning)")
+        @run_on_ui_thread
+        def _start_reading_ui():
+            try:
+                from jnius import autoclass
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                Context = autoclass('android.content.Context')
+                UsbConstants = autoclass('android.hardware.usb.UsbConstants')
+                PendingIntent = autoclass('android.app.PendingIntent')
+                Intent = autoclass('android.content.Intent')
                 
-                ACTION_USB_PERMISSION = "org.lidar.sistemalidar.USB_PERMISSION"
-                intent = Intent(ACTION_USB_PERMISSION)
-                intent.setPackage(activity.getPackageName())
+                activity = PythonActivity.mActivity
+                usb_manager = activity.getSystemService(Context.USB_SERVICE)
+                device_list = usb_manager.getDeviceList()
                 
-                # Android 12+ (API 31) richiede FLAG_MUTABLE (33554432) o FLAG_IMMUTABLE (67108864)
-                # Oltre a FLAG_UPDATE_CURRENT (134217728)
-                flags = 33554432 | 134217728
+                if device_list.isEmpty():
+                    self.log_to_js("Nessun disp. USB", "var(--danger)")
+                    return
                 
-                permission_intent = PendingIntent.getBroadcast(activity, 0, intent, flags)
-                usb_manager.requestPermission(self.device, permission_intent)
-                return
+                # Prendi il primo dispositivo (spesso è l'unico collegato)
+                self.device = device_list.values().iterator().next()
+                
+                # Controlla i permessi
+                if not usb_manager.hasPermission(self.device):
+                    self.log_to_js("Richiesta Permesso...", "var(--warning)")
+                    
+                    ACTION_USB_PERMISSION = "org.lidar.sistemalidar.USB_PERMISSION"
+                    intent = Intent(ACTION_USB_PERMISSION)
+                    intent.setPackage(activity.getPackageName())
+                    
+                    # Android 12+ (API 31) richiede FLAG_MUTABLE (33554432)
+                    # Oltre a FLAG_UPDATE_CURRENT (134217728)
+                    flags = 33554432 | 134217728
+                    
+                    permission_intent = PendingIntent.getBroadcast(activity, 0, intent, flags)
+                    usb_manager.requestPermission(self.device, permission_intent)
+                    self.log_to_js("PREMI DI NUOVO DOPO L'OK", "var(--warning)")
+                    return
 
-            self.connection = usb_manager.openDevice(self.device)
-            if not self.connection:
-                self.log_to_js("Errore apertura", "var(--danger)")
-                return
-            
-            interface = self.device.getInterface(0)
-            self.connection.claimInterface(interface, True)
-            
-            # FTDI Configurazione Baud Rate (115200) e parametri linea (8N1)
-            # REQTYPE_HOST_TO_DEVICE = 0x40
-            # FTDI_SIO_RESET = 0, FTDI_SIO_SET_BAUDRATE = 3, FTDI_SIO_SET_DATA = 4
-            self.connection.controlTransfer(0x40, 0, 0, 0, None, 0, 1000) # Reset
-            self.connection.controlTransfer(0x40, 3, 0x001A, 0, None, 0, 1000) # Baud 115200 (divisor = 0x1A)
-            self.connection.controlTransfer(0x40, 4, 8, 0, None, 0, 1000) # 8N1 (valore 8)
+                self.connection = usb_manager.openDevice(self.device)
+                if not self.connection:
+                    self.log_to_js("Errore apertura", "var(--danger)")
+                    return
+                
+                interface = self.device.getInterface(0)
+                self.connection.claimInterface(interface, True)
+                
+                # FTDI Configurazione Baud Rate (115200) e parametri linea (8N1)
+                self.connection.controlTransfer(0x40, 0, 0, 0, None, 0, 1000) # Reset
+                self.connection.controlTransfer(0x40, 3, 0x001A, 0, None, 0, 1000) # Baud 115200
+                self.connection.controlTransfer(0x40, 4, 8, 0, None, 0, 1000) # 8N1
 
-            # Cerca l'endpoint IN
-            self.endpoint_in = None
-            for i in range(interface.getEndpointCount()):
-                ep = interface.getEndpoint(i)
-                if ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK and \
-                   ep.getDirection() == UsbConstants.USB_DIR_IN:
-                    self.endpoint_in = ep
-                    break
-            
-            if not self.endpoint_in:
-                self.log_to_js("Endpoint non trovato", "var(--danger)")
-                return
+                # Cerca l'endpoint IN
+                self.endpoint_in = None
+                for i in range(interface.getEndpointCount()):
+                    ep = interface.getEndpoint(i)
+                    if ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK and \
+                       ep.getDirection() == UsbConstants.USB_DIR_IN:
+                        self.endpoint_in = ep
+                        break
+                
+                if not self.endpoint_in:
+                    self.log_to_js("Endpoint non trovato", "var(--danger)")
+                    return
 
-            self.stop_thread.clear()
-            threading.Thread(target=self._read_loop, daemon=True).start()
-            self.log_to_js("CONNESSO", "var(--primary)")
-        except Exception as e:
-            self.log_to_js(f"Errore: {str(e)[:30]}", "var(--danger)")
+                self.stop_thread.clear()
+                threading.Thread(target=self._read_loop, daemon=True).start()
+                self.log_to_js("CONNESSO", "var(--primary)")
+            except Exception as e:
+                import traceback
+                print(traceback.format_exc())
+                self.log_to_js(f"Err: {str(e)[:25]}", "var(--danger)")
+
+        _start_reading_ui()
 
     def _read_loop(self):
         buffer = bytearray(4096)
