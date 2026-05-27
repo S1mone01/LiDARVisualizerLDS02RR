@@ -2,18 +2,26 @@ import os
 import threading
 import json
 import time
+import sys
 from flask import Flask, render_template
 from kivy.app import App
-from kivy.uix.modalview import ModalView
-from kivy.clock import Clock
 from kivy.utils import platform
 
-# Inizializzazione Flask
-app = Flask(__name__)
+# Gestione percorsi per Android
+if platform == 'android':
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    template_folder = os.path.join(base_path, 'templates')
+else:
+    template_folder = 'templates'
+
+app = Flask(__name__, template_folder=template_folder)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        return f"Errore Template: {str(e)}"
 
 # Logica di Parsing LiDAR (estratta da lidar_read.py)
 class LidarLogic:
