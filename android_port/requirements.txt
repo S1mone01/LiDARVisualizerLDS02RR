@@ -1,0 +1,5 @@
+kivy
+flask
+pyjnius
+android
+# Altre dipendenze verranno gestite da buildozer.spec

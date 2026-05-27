@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema LiDAR</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00ff00;
+            --bg: #050507;
+            --card-bg: #111115;
+            --text: #e0e0e0;
+            --danger: #ff3333;
+            --warning: #ffcc00;
+            --info: #00ccff;
+            --border: #22222b;
+            --accent: rgba(0, 255, 0, 0.1);
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            grid-template-rows: auto 1fr;
+            height: 100vh;
+            margin: 0;
+            gap: 12px;
+            padding: 12px;
+            overflow: hidden;
+        }
+        header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 15px 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        h1 { 
+            margin: 0; 
+            font-family: 'Orbitron', sans-serif; 
+            font-size: 1.2rem; 
+            letter-spacing: 2px;
+            color: var(--primary); 
+            text-shadow: 0 0 15px rgba(0,255,0,0.4); 
+        }
+        
+        #sidebar {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+
+        .stat-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            border-left: 4px solid #333;
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover { background: rgba(255,255,255,0.04); border-color: #444; }
+        .stat-card.alert { border-left-color: var(--danger); animation: pulse 1.5s infinite; }
+        .label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 8px; font-weight: 700; letter-spacing: 1px; }
+        .value { font-family: 'Orbitron', sans-serif; font-size: 1.5rem; font-weight: bold; color: #fff; }
+        .unit { font-size: 0.8rem; color: #666; margin-left: 4px; }
+
+        #main-view {
+            background: var(--card-bg);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+        }
+        canvas { width: 100%; height: 100%; cursor: crosshair; }
+
+        .controls-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 100;
+        }
+        
+        .btn {
+            background: #1a1a20;
+            border: 1px solid var(--border);
+            color: #aaa;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+        .btn:hover { background: #25252f; border-color: var(--primary); color: #fff; }
+        .btn.active { 
+            background: var(--primary); 
+            color: #000; 
+            border-color: var(--primary); 
+            box-shadow: 0 0 15px rgba(0,255,0,0.3);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: inset 0 0 0 0 rgba(255,0,0,0); }
+            50% { box-shadow: inset 0 0 20px 0 rgba(255,0,0,0.2); }
+            100% { box-shadow: inset 0 0 0 0 rgba(255,0,0,0); }
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            background: rgba(10, 10, 15, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(5px);
+        }
+
+        select {
+            appearance: none;
+            background: #1a1a20;
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-family: 'Rajdhani', sans-serif;
+            cursor: pointer;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>SISTEMA LiDAR</h1>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div id="connection-controls" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 8px; border: 1px solid var(--border);">
+                <span class="label" style="margin-bottom:0; font-size: 0.7rem;">PORTA:</span>
+                <select id="com-port-select" style="width: 100px;">
+                    <option value="">Scansione...</option>
+                </select>
+                <button class="btn" id="btnConnect" style="padding: 5px 12px; font-size: 0.7rem;">Connetti</button>
+            </div>
+            <span id="connection-status" style="font-weight: bold; font-family: 'Orbitron'; font-size: 0.9rem; min-width: 120px; text-align: right;">DISCONNESSO</span>
+            <span id="timestamp" style="color: #666; font-size: 1rem; font-family: 'Orbitron'; margin-left: 10px;">--:--:--</span>
+        </div>
+    </header>
+
+    <div id="sidebar">
+        <div class="stat-group">
+            <div class="stat-card">
+                <div class="label">Punti Scansione</div>
+                <div class="value" id="point-count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Frequenza</div>
+                <div class="value" id="hz">0.0<span class="unit">Hz</span></div>
+                <div style="font-size: 0.75rem; color: #888; font-family: 'Orbitron'; margin-top: 4px; font-weight: bold;">
+                    <span id="rpm">0</span> <span style="font-size: 0.6rem;">RPM</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card" id="closest-card">
+            <div class="label">Oggetto più Vicino</div>
+            <div class="value"><span id="min-dist">0.00</span><span class="unit">m</span> @ <span id="min-angle">0</span>°</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="label">Telemetria Tecnica</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:5px;">
+                <div>
+                    <div class="label" title="Numero di punti campionati ed elaborati al secondo">Data Rate</div>
+                    <div class="value" id="data-rate" style="font-size: 1.1rem;">0<span class="unit">PT/s</span></div>
+                </div>
+                <div>
+                    <div class="label" title="Percentuale di campo visivo (360°) coperta da dati validi">Copertura FOV</div>
+                    <div class="value" id="fov-cov" style="font-size: 1.1rem;">0<span class="unit">%</span></div>
+                </div>
+                <div>
+                    <div class="label" title="Distanza dell'oggetto più lontano rilevato nella scansione corrente">Distanza Max</div>
+                    <div class="value" id="max-scan-dist" style="font-size: 1.1rem;">0<span class="unit">m</span></div>
+                </div>
+                <div>
+                    <div class="label" title="Integrità dati: Numero di pacchetti corrotti (CRC Error) rispetto al totale ricevuto">Frame CRC</div>
+                    <div class="value" id="crc-stats" style="font-size: 0.9rem; color: #aaa; margin-top: 5px;">0 / 0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="label">Configurazione Sistema</div>
+            <div style="margin-top:10px">
+                <div class="label" style="margin-bottom:8px">Modalità Colore</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                    <button class="btn active" id="modeDistance" style="padding: 8px 5px; font-size: 0.75rem;">Distanza</button>
+                    <button class="btn" id="modeIntensity" style="padding: 8px 5px; font-size: 0.75rem;">Intensità</button>
+                </div>
+            </div>
+            <div style="margin-top:15px">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div class="label" style="margin-bottom:0">Raggio Massimo</div>
+                    <div id="rangeVal" style="font-family:'Orbitron'; font-size:0.8rem; color:var(--primary)">10.0m</div>
+                </div>
+                <input type="range" id="rangeSlider" min="1" max="10" value="10" step="0.1" style="width:100%; accent-color:var(--primary); cursor:pointer;">
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="label">Effetti Visivi</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;">
+                <button class="btn" id="togglePersistence">Persistenza</button>
+                <button class="btn" id="toggleAlarm">Allarme</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-view">
+        <div class="controls-overlay">
+            <button class="btn" id="btnPause">PAUSA</button>
+            <button class="btn" id="btnSnapshot">SCREENSHOT</button>
+        </div>
+        <canvas id="radarCanvas"></canvas>
+        <div class="legend" id="legend-box">
+            <div style="margin-bottom:8px; font-weight:bold; color:var(--primary); font-family: 'Orbitron'; font-size: 0.7rem; letter-spacing: 1px;">LEGENDA</div>
+            <div id="legend-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('radarCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // State
+        let currentMaxRange = 10;
+        let currentColorMode = 'distance';
+        let isPaused = false;
+        let usePersistence = false;
+        let alarmEnabled = false;
+        
+        // UI Elements
+        const rangeSlider = document.getElementById('rangeSlider');
+        const rangeVal = document.getElementById('rangeVal');
+        const btnDist = document.getElementById('modeDistance');
+        const btnInt = document.getElementById('modeIntensity');
+        const portSelect = document.getElementById('com-port-select');
+        const btnConnect = document.getElementById('btnConnect');
+        const connStatus = document.getElementById('connection-status');
+        const timestampEl = document.getElementById('timestamp');
+
+        // Audio for alarm
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playAlarm(dist) {
+            if (!alarmEnabled || dist > 1.5) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(800 + (1 - dist/1.5)*1000, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('main-view');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // UI Listeners
+        rangeSlider.addEventListener('input', (e) => {
+            currentMaxRange = parseFloat(e.target.value);
+            rangeVal.innerText = currentMaxRange.toFixed(1) + 'm';
+        });
+
+        btnDist.onclick = () => {
+            currentColorMode = 'distance';
+            btnDist.classList.add('active');
+            btnInt.classList.remove('active');
+            updateLegend();
+        };
+
+        btnInt.onclick = () => {
+            currentColorMode = 'intensity';
+            btnInt.classList.add('active');
+            btnDist.classList.remove('active');
+            updateLegend();
+        };
+
+        document.getElementById('btnPause').onclick = function() {
+            isPaused = !isPaused;
+            this.classList.toggle('active');
+            this.innerText = isPaused ? 'RIPRENDI' : 'PAUSA';
+        };
+        document.getElementById('togglePersistence').onclick = function() {
+            usePersistence = !usePersistence;
+            this.classList.toggle('active');
+        };
+        document.getElementById('toggleAlarm').onclick = function() {
+            alarmEnabled = !alarmEnabled;
+            this.classList.toggle('active');
+        };
+        document.getElementById('btnSnapshot').onclick = () => {
+            const link = document.createElement('a');
+            link.download = `lidar_snapshot_${Date.now()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        };
+
+        function updateLegend() {
+            const content = document.getElementById('legend-content');
+            if (currentColorMode === 'distance') {
+                content.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#f33;border-radius:2px"></div> Vicino (<1m)</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#fc0;border-radius:2px"></div> Medio</div>
+                    <div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;background:#0f0;border-radius:2px"></div> Lontano</div>
+                `;
+            } else {
+                content.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#0f0;border-radius:2px"></div> Segnale Forte</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:12px;height:12px;background:#060;border-radius:2px"></div> Segnale Debole</div>
+                    <div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;background:#f33;border-radius:2px"></div> Errore Dati</div>
+                `;
+            }
+        }
+        updateLegend();
+
+        // Standalone API Initialization
+        window.addEventListener('pywebviewready', function() {
+            window.pywebview.api.get_ports().then(function(ports) {
+                portSelect.innerHTML = ports.length ? '' : '<option value="">Nessuna porta</option>';
+                ports.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p;
+                    opt.innerText = p;
+                    portSelect.appendChild(opt);
+                });
+            });
+        });
+
+        btnConnect.onclick = () => {
+            const port = portSelect.value;
+            if (port) {
+                window.pywebview.api.connect_lidar(port);
+                connStatus.innerText = "CONNESSIONE...";
+                connStatus.style.color = "var(--warning)";
+            }
+        };
+
+        // Global functions called by Python
+        window.updateConnectionStatus = function(status, info) {
+            if (status === 'connected') {
+                connStatus.innerText = "ONLINE (" + info + ")";
+                connStatus.style.color = "var(--primary)";
+            } else if (status === 'error') {
+                connStatus.innerText = "ERRORE";
+                connStatus.style.color = "var(--danger)";
+                alert("Errore di connessione: " + info);
+            }
+        };
+
+        function getDistanceColor(dist) {
+            const hue = Math.min(120, (dist / currentMaxRange) * 120);
+            return `hsl(${hue}, 100%, 50%)`;
+        }
+
+        function drawGrid(centerX, centerY, scale) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            for (let r = 1; r <= currentMaxRange * 2; r++) {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, r * scale, 0, 2 * Math.PI);
+                ctx.stroke();
+                if (r <= currentMaxRange && r % 2 === 0) {
+                    ctx.fillStyle = '#555';
+                    ctx.font = '10px Orbitron';
+                    ctx.fillText(r + 'm', centerX + r * scale + 5, centerY - 5);
+                }
+            }
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.moveTo(0, centerY); ctx.lineTo(canvas.width, centerY);
+            ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+            for(let a=0; a<360; a+=45) {
+                const rad = (a + 90) * Math.PI / 180;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(centerX + Math.cos(rad) * currentMaxRange * scale * 2, centerY + Math.sin(rad) * currentMaxRange * scale * 2);
+                ctx.stroke();
+            }
+        }
+
+        window.updateLidarData = function(data) {
+            if (isPaused) return;
+            timestampEl.innerText = new Date().toLocaleTimeString();
+            
+            const { scan, intensities, errors, count, hz, rpm, avg_intensity, error_rate, max_dist, fov_coverage, data_rate, total_frames, bad_frames } = data;
+
+            document.getElementById('point-count').innerText = count;
+            document.getElementById('hz').childNodes[0].nodeValue = hz.toFixed(2);
+            document.getElementById('rpm').innerText = Math.round(rpm);
+            document.getElementById('data-rate').childNodes[0].nodeValue = Math.round(data_rate);
+            document.getElementById('fov-cov').childNodes[0].nodeValue = fov_coverage.toFixed(1);
+            document.getElementById('max-scan-dist').childNodes[0].nodeValue = max_dist.toFixed(2);
+            document.getElementById('crc-stats').innerText = `${bad_frames} / ${total_frames}`;
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const scale = Math.min(canvas.width, canvas.height) / (2 * currentMaxRange);
+
+            let minDist = 999;
+            let minAngle = 0;
+            for (let i = 0; i < 360; i++) {
+                const d = scan[i];
+                if (d > 0) {
+                    if (d < minDist) { minDist = d; minAngle = i; }
+                }
+            }
+
+            document.getElementById('min-dist').innerText = minDist.toFixed(2);
+            document.getElementById('min-angle').innerText = minAngle;
+            document.getElementById('closest-card').classList.toggle('alert', minDist < 1.0);
+            if (minDist < 1.0) playAlarm(minDist);
+
+            if (usePersistence) {
+                ctx.fillStyle = 'rgba(5, 5, 7, 0.2)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#050507';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            drawGrid(centerX, centerY, scale);
+
+            for (let angle = 0; angle < 360; angle++) {
+                const dist = scan[angle];
+                if (dist > 0) {
+                    const rad = (angle + 90) * Math.PI / 180;
+                    const x = centerX + dist * Math.cos(rad) * scale;
+                    const y = centerY + dist * Math.sin(rad) * scale;
+                    if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) continue;
+
+                    if (errors[angle]) ctx.fillStyle = 'var(--danger)';
+                    else if (currentColorMode === 'distance') ctx.fillStyle = getDistanceColor(dist);
+                    else ctx.fillStyle = `rgb(0, ${Math.min(255, (intensities[angle]/500)*255)}, 0)`;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, angle === minAngle ? 4 : 2, 0, 2 * Math.PI);
+                    ctx.fill();
+                    if (angle === minAngle) {
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+            }
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'var(--primary)';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        };
+    </script>
+</body>
+</html>
