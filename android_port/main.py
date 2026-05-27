@@ -286,7 +286,7 @@ class LidarApp(App):
                     self.webview.setWebViewClient(WebViewClient())
                     self.webview.setWebChromeClient(WebChromeClient())
                     
-                    self.webview.loadUrl("http://127.0.0.1:5000")
+                    self.webview.loadUrl("http://localhost:5000")
                     activity.setContentView(self.webview)
                 
                 setup_webview()
