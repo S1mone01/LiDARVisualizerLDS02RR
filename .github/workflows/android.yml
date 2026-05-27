@@ -25,6 +25,17 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            android_port/.buildozer
+            ~/.gradle
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('android_port/buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
       - name: Install dependencies
         run: |
           sudo apt update
