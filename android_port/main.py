@@ -6,26 +6,12 @@ import sys
 from kivy.app import App
 from kivy.utils import platform
 
-# Helper per eseguire codice sul thread principale di Android
-def run_on_main_thread(func):
-    if platform != 'android':
+# Helper per eseguire codice sul thread principale
+if platform == 'android':
+    from android.runnable import run_on_ui_thread
+else:
+    def run_on_ui_thread(func):
         return func
-    def wrapper(*args, **kwargs):
-        from jnius import autoclass, PythonJavaClass, java_method
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        activity = PythonActivity.mActivity
-
-        class PythonRunnable(PythonJavaClass):
-            __javainterfaces__ = ['java/lang/Runnable']
-            def __init__(self, callback):
-                super(PythonRunnable, self).__init__()
-                self.callback = callback
-            @java_method('()V')
-            def run(self):
-                self.callback()
-
-        activity.runOnUiThread(PythonRunnable(lambda: func(*args, **kwargs)))
-    return wrapper
 
 # Logica di Parsing LiDAR
 class LidarLogic:
@@ -133,19 +119,21 @@ class AndroidUSBSerial:
         
     def log_to_js(self, msg, color=None):
         if platform == 'android':
-            @run_on_main_thread
+            @run_on_ui_thread
             def do_log():
-                self.app.webview.evaluateJavascript(f"updateStatus('{msg}', '{color or 'var(--text)'}')", None)
+                try:
+                    self.app.webview.loadUrl(f"javascript:updateStatus('{msg}', '{color or 'var(--text)'}')")
+                except:
+                    pass
             do_log()
 
     def start_reading(self):
         if platform != 'android':
             return
         try:
-            from jnius import autoclass, cast
+            from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             Context = autoclass('android.content.Context')
-            UsbManager = autoclass('android.hardware.usb.UsbManager')
             UsbConstants = autoclass('android.hardware.usb.UsbConstants')
             PendingIntent = autoclass('android.app.PendingIntent')
             Intent = autoclass('android.content.Intent')
@@ -168,7 +156,6 @@ class AndroidUSBSerial:
                 ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION"
                 intent = Intent(ACTION_USB_PERMISSION)
                 
-                # Flag per PendingIntent (richiesto da API 31+)
                 flags = 0
                 try:
                     flags = PendingIntent.FLAG_MUTABLE
@@ -187,6 +174,13 @@ class AndroidUSBSerial:
             interface = self.device.getInterface(0)
             self.connection.claimInterface(interface, True)
             
+            # FTDI Configurazione Baud Rate (115200) e parametri linea (8N1)
+            # REQTYPE_HOST_TO_DEVICE = 0x40
+            # FTDI_SIO_RESET = 0, FTDI_SIO_SET_BAUDRATE = 3, FTDI_SIO_SET_DATA = 4
+            self.connection.controlTransfer(0x40, 0, 0, 0, None, 0, 1000) # Reset
+            self.connection.controlTransfer(0x40, 3, 0x001A, 0, None, 0, 1000) # Baud 115200 (divisor = 0x1A)
+            self.connection.controlTransfer(0x40, 4, 8, 0, None, 0, 1000) # 8N1 (valore 8)
+
             # Cerca l'endpoint IN
             self.endpoint_in = None
             for i in range(interface.getEndpointCount()):
@@ -210,27 +204,27 @@ class AndroidUSBSerial:
         buffer = bytearray(4096)
         while not self.stop_thread.is_set():
             try:
-                # bulkTransfer(endpoint, buffer, length, timeout)
-                num_bytes = self.connection.bulkTransfer(self.endpoint_in, buffer, 4096, 1000)
-                if num_bytes > 0:
-                    chunk = bytes(buffer[:num_bytes])
+                num_bytes = self.connection.bulkTransfer(self.endpoint_in, buffer, 4096, 100)
+                # FTDI chips mandano sempre 2 byte di stato modem all'inizio di ogni pacchetto USB IN
+                if num_bytes > 2:
+                    chunk = bytes(buffer[2:num_bytes])
                     payloads = self.lidar_logic.process_data(chunk)
                     for p in payloads:
                         self.send_to_js(p)
-                elif num_bytes < 0:
-                    # Errore o timeout prolungato
-                    pass
             except Exception as e:
                 self.log_to_js("Errore lettura", "var(--danger)")
                 break
 
     def send_to_js(self, payload):
         if platform == 'android':
+            import base64
             json_data = json.dumps(payload)
-            @run_on_main_thread
+            # Uso Base64 per evitare problemi di escaping nelle stringhe js
+            encoded_data = base64.b64encode(json_data.encode('utf-8')).decode('utf-8')
+            @run_on_ui_thread
             def update():
                 try:
-                    self.app.webview.evaluateJavascript(f"updateLidarData('{json_data}')", None)
+                    self.app.webview.loadUrl(f"javascript:updateLidarData(atob('{encoded_data}'))")
                 except:
                     pass
             update()
@@ -265,9 +259,9 @@ class LidarApp(App):
             threading.Thread(target=server.serve_forever, daemon=True).start()
             
             if platform == 'android':
-                @run_on_main_thread
+                @run_on_ui_thread
                 def setup_webview():
-                    from jnius import autoclass, PythonJavaClass, java_method
+                    from jnius import autoclass
                     WebView = autoclass('android.webkit.WebView')
                     WebViewClient = autoclass('android.webkit.WebViewClient')
                     WebChromeClient = autoclass('android.webkit.WebChromeClient')
