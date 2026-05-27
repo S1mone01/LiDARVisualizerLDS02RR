@@ -11,7 +11,6 @@ requirements = python3,kivy,pyjnius,android
 orientation = landscape
 fullscreen = 1
 android.permissions = INTERNET
-android.features = android.hardware.usb.host
 android.api = 31
 android.minapi = 21
 android.sdk = 33
