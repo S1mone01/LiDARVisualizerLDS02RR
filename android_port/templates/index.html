@@ -240,6 +240,13 @@
                 <input type="range" id="rangeSlider" min="1" max="10" value="10" step="0.1" style="width:100%; accent-color:var(--primary); cursor:pointer;">
             </div>
         </div>
+        
+        <div class="stat-card" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 150px;">
+            <div class="label">System Logs</div>
+            <div id="log-console" style="background: #000; color: #0f0; font-family: monospace; font-size: 0.65rem; padding: 8px; overflow-y: auto; flex-grow: 1; height: 120px; border: 1px solid var(--border); border-radius: 4px; word-wrap: break-word;">
+                > Avvio interfaccia...<br>
+            </div>
+        </div>
     </div>
 
     <div id="main-view">
@@ -340,8 +347,17 @@
 
         // Android bridge functions
         window.updateStatus = function(status, color) {
-            connStatus.innerText = status;
+            connStatus.innerText = status.length > 20 ? "ERRORE" : status;
             if (color) connStatus.style.color = color;
+        };
+        
+        window.appendLog = function(msg, color) {
+            const consoleEl = document.getElementById('log-console');
+            const span = document.createElement('span');
+            span.style.color = color || '#aaa';
+            span.innerText = "> " + msg + "\n";
+            consoleEl.appendChild(span);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
         };
 
         function getDistanceColor(dist) {

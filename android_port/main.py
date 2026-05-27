@@ -126,6 +126,7 @@ class AndroidUSBSerial:
             def do_log():
                 try:
                     self.app.webview.loadUrl(f"javascript:updateStatus(atob('{safe_msg}'), '{safe_color}')")
+                    self.app.webview.loadUrl(f"javascript:appendLog(atob('{safe_msg}'), '{safe_color}')")
                 except:
                     pass
             do_log()
@@ -137,6 +138,7 @@ class AndroidUSBSerial:
         @run_on_ui_thread
         def _start_reading_ui():
             try:
+                self.log_to_js("Avvio procedura USB...", "#aaa")
                 from jnius import autoclass
                 from usbserial4a import serial4a
 
@@ -145,35 +147,41 @@ class AndroidUSBSerial:
                 PendingIntent = autoclass('android.app.PendingIntent')
                 Intent = autoclass('android.content.Intent')
                 
+                self.log_to_js("Importati moduli jnius.", "#aaa")
+                
                 activity = PythonActivity.mActivity
                 usb_manager = activity.getSystemService(Context.USB_SERVICE)
+                
+                self.log_to_js("Ottenuto UsbManager.", "#aaa")
                 
                 device_list = usb_manager.getDeviceList()
                 if device_list.isEmpty():
                     self.log_to_js("Nessun disp. USB", "var(--danger)")
                     return
                 
-                # Prendi il primo dispositivo USB collegato
                 self.device = device_list.values().iterator().next()
+                self.log_to_js(f"Trovato: {self.device.getDeviceName()}", "#aaa")
                 
-                # Controllo permessi
                 if not usb_manager.hasPermission(self.device):
-                    self.log_to_js("Richiesta Permesso...", "var(--warning)")
+                    self.log_to_js("Permessi mancanti. Prearo Intent.", "#aaa")
                     
                     ACTION_USB_PERMISSION = "org.lidar.sistemalidar.USB_PERMISSION"
                     intent = Intent(ACTION_USB_PERMISSION)
                     intent.setPackage(activity.getPackageName())
+                    self.log_to_js(f"Pkg: {activity.getPackageName()}", "#aaa")
                     
-                    # 33554432 = FLAG_MUTABLE
-                    # 134217728 = FLAG_UPDATE_CURRENT
                     flags = 33554432 | 134217728
+                    self.log_to_js(f"Flags: {flags}", "#aaa")
                     
                     permission_intent = PendingIntent.getBroadcast(activity, 0, intent, flags)
+                    self.log_to_js("PendingIntent creato.", "#aaa")
+                    
                     usb_manager.requestPermission(self.device, permission_intent)
+                    self.log_to_js("requestPermission eseguito.", "var(--warning)")
                     self.log_to_js("PREMI DI NUOVO DOPO L'OK", "var(--warning)")
                     return
 
-                # Ottieni e apri la porta seriale usando usbserial4a
+                self.log_to_js("Permessi OK. Apro seriale.", "#aaa")
                 device_name = self.device.getDeviceName()
                 self.serial_port = serial4a.get_serial_port(device_name, 115200, timeout=0.1)
                 
@@ -183,6 +191,7 @@ class AndroidUSBSerial:
                     
                 if not self.serial_port.is_open:
                     self.serial_port.open()
+                    self.log_to_js("Porta aperta con successo.", "#aaa")
 
                 self.stop_thread.clear()
                 threading.Thread(target=self._read_loop, daemon=True).start()
@@ -190,8 +199,9 @@ class AndroidUSBSerial:
                 
             except Exception as e:
                 import traceback
-                print(traceback.format_exc())
-                self.log_to_js(f"Err: {str(e)[:30]}", "var(--danger)")
+                err_str = traceback.format_exc()
+                print(err_str)
+                self.log_to_js(f"Err: {err_str}", "var(--danger)")
 
         _start_reading_ui()
 
