@@ -234,36 +234,43 @@ class LidarApp(App):
             threading.Thread(target=self.run_flask, daemon=True).start()
             
             if platform == 'android':
-                from jnius import autoclass, PythonJavaClass, java_method
+                from android.runnable import run_on_main_thread
                 
-                WebView = autoclass('android.webkit.WebView')
-                WebViewClient = autoclass('android.webkit.WebViewClient')
-                WebChromeClient = autoclass('android.webkit.WebChromeClient')
-                activity = autoclass('org.kivy.android.PythonActivity').mActivity
-                
-                self.webview = WebView(activity)
-                settings = self.webview.getSettings()
-                settings.setJavaScriptEnabled(True)
-                settings.setDomStorageEnabled(True)
-                settings.setAllowFileAccess(True)
-                
-                # Bridge per chiamate da JS a Python
-                class WebAppInterface(PythonJavaClass):
-                    __javainterfaces__ = ['android/webkit/JavascriptInterface']
-                    def __init__(self, usb_handler):
-                        self.usb_handler = usb_handler
+                @run_on_main_thread
+                def setup_webview():
+                    from jnius import autoclass, PythonJavaClass, java_method
                     
-                    @java_method('(Ljava/lang/String;)V')
-                    def connect_usb(self, msg=None):
-                        self.usb_handler.start_reading()
+                    WebView = autoclass('android.webkit.WebView')
+                    WebViewClient = autoclass('android.webkit.WebViewClient')
+                    WebChromeClient = autoclass('android.webkit.WebChromeClient')
+                    activity = autoclass('org.kivy.android.PythonActivity').mActivity
+                    
+                    self.webview = WebView(activity)
+                    settings = self.webview.getSettings()
+                    settings.setJavaScriptEnabled(True)
+                    settings.setDomStorageEnabled(True)
+                    settings.setAllowFileAccess(True)
+                    
+                    # Bridge per chiamate da JS a Python
+                    class WebAppInterface(PythonJavaClass):
+                        __javainterfaces__ = ['android/webkit/JavascriptInterface']
+                        def __init__(self, usb_handler):
+                            self.usb_handler = usb_handler
+                        
+                        @java_method('(Ljava/lang/String;)V')
+                        def connect_usb(self, msg=None):
+                            self.usb_handler.start_reading()
 
-                self.webview.addJavascriptInterface(WebAppInterface(self.usb_manager), "python")
-                self.webview.setWebViewClient(WebViewClient())
-                self.webview.setWebChromeClient(WebChromeClient())
+                    self.webview.addJavascriptInterface(WebAppInterface(self.usb_manager), "python")
+                    self.webview.setWebViewClient(WebViewClient())
+                    self.webview.setWebChromeClient(WebChromeClient())
+                    
+                    self.webview.loadUrl("http://127.0.0.1:5000")
+                    activity.setContentView(self.webview)
                 
-                self.webview.loadUrl("http://127.0.0.1:5000")
-                activity.setContentView(self.webview)
-                return self.webview
+                setup_webview()
+                from kivy.uix.widget import Widget
+                return Widget() # Placeholder mentre la WebView carica sul thread principale
             else:
                 from kivy.uix.label import Label
                 return Label(text="Interfaccia Desktop non disponibile")
